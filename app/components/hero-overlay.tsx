@@ -1,4 +1,4 @@
-function HeroOverlay() {
+export function HeroOverlay() {
     return (
         <div className="absolute top-0 -left-40 w-full h-full z-10 flex items-center pointer-events-none">
             <div className="container mx-auto px-8 max-w-7xl w-full">
