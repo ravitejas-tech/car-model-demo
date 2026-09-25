@@ -1,39 +1,42 @@
 import {
     ContactShadows,
     Environment,
-    Lightformer,
     MeshReflectorMaterial,
     PerformanceMonitor,
 } from "@react-three/drei";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Suspense, useMemo, useRef, useState } from "react";
+import { Bloom, EffectComposer, ToneMapping } from "@react-three/postprocessing";
+import { ToneMappingMode } from "postprocessing";
+import { Suspense, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import type { CameraShot, Hotspot, Paint } from "~/lib/showroom";
+import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
+import { ROOM, type FloorFinish, type GarageTheme } from "~/lib/garage";
+import type { CameraShot, Paint } from "~/lib/showroom";
 import { CameraRig } from "./camera-rig";
 import { CarModel } from "./car-model";
-import { Hotspots } from "./hotspots";
-
-const BACKGROUND = "#08090b";
+import { GarageRoom, makeConcreteTexture } from "./garage-room";
 
 type ShowroomStageProps = {
     paint: Paint;
     shot: CameraShot;
     ready: boolean;
     autoRotate: boolean;
-    showHotspots: boolean;
-    activeHotspot: string | null;
     panelOpen: boolean;
+    garage: GarageTheme;
+    floor: FloorFinish["id"];
+    lightLevel: number;
     onReady: () => void;
     onUserInteract: () => void;
-    onHotspotSelect: (hotspot: Hotspot) => void;
 };
 
 export function ShowroomStage(props: ShowroomStageProps) {
     const [dpr, setDpr] = useState(1.5);
-    // Weak GPUs (or ?quality=low) get a plain floor and no real-time shadows.
+    // Weak GPUs (or ?quality=low) get a plain floor, no bloom and no real-time shadows.
     const [lowQuality, setLowQuality] = useState(
         () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("quality") === "low"
     );
+    const { garage, paint, lightLevel } = props;
+    const fixtureColor = garage.lightColor === "accent" ? paint.accent : garage.lightColor;
 
     return (
         <Canvas
@@ -41,7 +44,7 @@ export function ShowroomStage(props: ShowroomStageProps) {
             dpr={lowQuality ? 1 : dpr}
             shadows={!lowQuality}
             gl={{ antialias: true, powerPreference: "high-performance" }}
-            camera={{ position: [10, 4.5, 12], fov: 32, near: 0.1, far: 80 }}
+            camera={{ position: [7.5, 3, 8], fov: 32, near: 0.1, far: 80 }}
         >
             <PerformanceMonitor
                 onIncline={() => setDpr(2)}
@@ -49,8 +52,7 @@ export function ShowroomStage(props: ShowroomStageProps) {
                 flipflops={3}
                 onFallback={() => setLowQuality(true)}
             />
-            <color attach="background" args={[BACKGROUND]} />
-            <fog attach="fog" args={[BACKGROUND, 11, 26]} />
+            <color attach="background" args={[garage.background]} />
 
             <ViewOffset panelOpen={props.panelOpen} />
             <CameraRig
@@ -60,112 +62,192 @@ export function ShowroomStage(props: ShowroomStageProps) {
                 onUserInteract={props.onUserInteract}
             />
 
-            <ambientLight intensity={0.15} />
-            <spotLight
-                position={[0, 9, 0]}
-                angle={0.55}
-                penumbra={1}
-                intensity={40}
-                castShadow={!lowQuality}
-                shadow-mapSize={[1024, 1024]}
-                shadow-bias={-0.0001}
-            />
+            <RoomLights color={fixtureColor} level={lightLevel} castShadow={!lowQuality} />
+
+            <GarageRoom theme={garage} accent={paint.accent} lightLevel={lightLevel} variant="scene" />
+            <GarageFloor finish={props.floor} lowQuality={lowQuality} />
+            <Turntable accent={paint.accent} />
 
             <Suspense fallback={null}>
-                <CarModel paint={props.paint} onReady={props.onReady}>
-                    <Hotspots
-                        visible={props.ready && props.showHotspots}
-                        activeId={props.activeHotspot}
-                        onSelect={props.onHotspotSelect}
-                    />
-                </CarModel>
-                <StudioLighting accent={props.paint.accent} />
+                <CarModel paint={paint} onReady={props.onReady} />
                 {/* The car never moves, so the soft shadow is baked once. */}
-                <ContactShadows position={[0, 0.005, 0]} scale={9} blur={2.2} far={2} opacity={0.75} resolution={512} frames={1} />
+                <ContactShadows position={[0, 0.005, 0]} scale={9} blur={2.2} far={2} opacity={0.8} resolution={512} frames={1} />
             </Suspense>
 
-            <Turntable accent={props.paint.accent} />
-            <ShowroomFloor lowQuality={lowQuality} />
+            {/*
+              The paint reflects an unlit copy of the room, baked once per
+              theme/paint change. Brightness is applied via environmentIntensity
+              so dragging the slider never re-bakes.
+            */}
+            <Environment
+                key={`${garage.id}-${props.floor}-${garage.lightColor === "accent" || garage.wallDetail === "neon" ? paint.accent : ""}`}
+                resolution={512}
+                frames={1}
+                environmentIntensity={0.35 + 0.65 * lightLevel}
+            >
+                <group position={[0, -1, 0]}>
+                    <GarageRoom theme={garage} accent={paint.accent} lightLevel={1} variant="environment" />
+                    <mesh rotation-x={-Math.PI / 2}>
+                        <planeGeometry args={[ROOM.halfWidth * 2, ROOM.halfDepth * 2]} />
+                        <meshBasicMaterial color={props.floor === "concrete" ? "#3d3b38" : props.floor === "checker" ? "#5a5a5c" : "#0c0d10"} />
+                    </mesh>
+                </group>
+            </Environment>
+
+            {!lowQuality && (
+                <EffectComposer multisampling={4}>
+                    <Bloom mipmapBlur luminanceThreshold={1} luminanceSmoothing={0.25} intensity={0.85} radius={0.72} />
+                    <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+                </EffectComposer>
+            )}
         </Canvas>
     );
 }
 
-/** A virtual photo studio: soft boxes and light strips that the paint reflects. */
-function StudioLighting({ accent }: { accent: string }) {
+let rectLightsReady = false;
+
+/** Real light sources matching the ceiling fixtures, so walls and floor are lit. */
+function RoomLights({ color, level, castShadow }: { color: string; level: number; castShadow: boolean }) {
+    if (!rectLightsReady && typeof window !== "undefined") {
+        RectAreaLightUniformsLib.init();
+        rectLightsReady = true;
+    }
     return (
-        // Keyed by accent: the environment map is baked once per paint change
-        // rather than re-rendered every frame.
-        <Environment key={accent} resolution={512} frames={1} background={false}>
-            <color attach="background" args={["#050505"]} />
-            {/* Overhead soft box */}
-            <Lightformer form="rect" intensity={2.2} position={[0, 6, 0]} rotation-x={Math.PI / 2} scale={[8, 4, 1]} />
-            {/* Long strips that draw clean lines along the body */}
-            {[-6, -2, 2, 6].map((z) => (
-                <Lightformer key={z} form="rect" intensity={3} position={[z, 4, -3]} rotation-x={Math.PI / 2} scale={[0.6, 12, 1]} />
-            ))}
-            <Lightformer form="rect" intensity={4} position={[-8, 1.5, 0]} rotation-y={Math.PI / 2} scale={[18, 1.2, 1]} />
-            <Lightformer form="rect" intensity={2.5} position={[8, 1.5, 0]} rotation-y={-Math.PI / 2} scale={[18, 1.2, 1]} />
-            {/* Coloured rim light that follows the selected paint */}
-            <Lightformer form="ring" color={accent} intensity={6} position={[-6, 3, -8]} scale={4} onUpdate={(self) => self.lookAt(0, 0, 0)} />
-        </Environment>
+        <>
+            <ambientLight intensity={0.06 * level} />
+            <hemisphereLight args={[color, "#1a1a1a", 0.55 * level]} />
+            <rectAreaLight
+                position={[0, ROOM.height - 0.1, 0]}
+                rotation-x={-Math.PI / 2}
+                width={11}
+                height={14}
+                color={color}
+                intensity={2.4 * level}
+            />
+            <spotLight
+                position={[0, ROOM.height - 0.2, 0]}
+                angle={0.9}
+                penumbra={1}
+                decay={1.4}
+                intensity={18 * level}
+                color={color}
+                castShadow={castShadow}
+                shadow-mapSize={[1024, 1024]}
+                shadow-bias={-0.0001}
+            />
+        </>
     );
 }
 
-function ShowroomFloor({ lowQuality }: { lowQuality: boolean }) {
-    const lowEnd = useThree((state) => state.size.width < 768);
-    if (lowQuality) {
-        return (
-            <mesh rotation-x={-Math.PI / 2}>
-                <planeGeometry args={[60, 60]} />
-                <meshStandardMaterial color="#060708" metalness={0} roughness={1} />
-            </mesh>
-        );
-    }
+/* ------------------------------------------------------------------ */
+/* Floor                                                               */
+/* ------------------------------------------------------------------ */
+
+let checkerCache: THREE.CanvasTexture | null = null;
+function makeCheckerTexture() {
+    if (checkerCache) return checkerCache;
+    const size = 512;
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext("2d")!;
+    const half = size / 2;
+    ctx.fillStyle = "#d4d4d2";
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "#141518";
+    ctx.fillRect(half, 0, half, half);
+    ctx.fillRect(0, half, half, half);
+    // Hairline grout between tiles.
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(0, 0, size, size);
+    ctx.beginPath();
+    ctx.moveTo(half, 0);
+    ctx.lineTo(half, size);
+    ctx.moveTo(0, half);
+    ctx.lineTo(size, half);
+    ctx.stroke();
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 16;
+    checkerCache = texture;
+    return texture;
+}
+
+const FLOOR_LOOKS: Record<
+    FloorFinish["id"],
+    { color: string; roughness: number; metalness: number; blur: [number, number]; mixStrength: number; tile?: number }
+> = {
+    // Deep, glossy and mirror-like.
+    epoxy: { color: "#101115", roughness: 0.35, metalness: 0.6, blur: [180, 70], mixStrength: 22 },
+    // Soft blurred reflections on warm grey.
+    concrete: { color: "#8c8882", roughness: 0.75, metalness: 0.1, blur: [500, 220], mixStrength: 3, tile: 6 },
+    // 60 cm tiles.
+    checker: { color: "#b4b4b2", roughness: 0.45, metalness: 0.15, blur: [260, 110], mixStrength: 5, tile: 1.2 },
+};
+
+function GarageFloor({ finish, lowQuality }: { finish: FloorFinish["id"]; lowQuality: boolean }) {
+    const narrow = useThree((state) => state.size.width < 768);
+    const look = FLOOR_LOOKS[finish];
+    const width = ROOM.halfWidth * 2;
+    const depth = ROOM.halfDepth * 2;
+
+    const map = useMemo(() => {
+        if (typeof document === "undefined" || finish === "epoxy") return null;
+        const texture = (finish === "checker" ? makeCheckerTexture() : makeConcreteTexture()).clone();
+        texture.repeat.set(width / look.tile!, depth / look.tile!);
+        texture.needsUpdate = true;
+        return texture;
+    }, [finish, width, depth, look.tile]);
+
     return (
         <mesh rotation-x={-Math.PI / 2} receiveShadow>
-            <planeGeometry args={[60, 60]} />
-            <MeshReflectorMaterial
-                blur={[400, 120]}
-                resolution={lowEnd ? 512 : 1024}
-                mixBlur={1}
-                mixStrength={12}
-                roughness={0.9}
-                depthScale={1.1}
-                minDepthThreshold={0.4}
-                maxDepthThreshold={1.3}
-                color="#0d0e11"
-                metalness={0.6}
-                mirror={0}
-            />
+            <planeGeometry args={[width, depth]} />
+            {lowQuality ? (
+                <meshStandardMaterial color={look.color} map={map} roughness={look.roughness} metalness={look.metalness} />
+            ) : (
+                <MeshReflectorMaterial
+                    key={finish}
+                    map={map}
+                    color={look.color}
+                    blur={look.blur}
+                    resolution={narrow ? 512 : 1024}
+                    mixBlur={1}
+                    mixStrength={look.mixStrength}
+                    mixContrast={1}
+                    roughness={look.roughness}
+                    metalness={look.metalness}
+                    depthScale={1.1}
+                    minDepthThreshold={0.4}
+                    maxDepthThreshold={1.3}
+                    mirror={0}
+                />
+            )}
         </mesh>
     );
 }
 
+/* ------------------------------------------------------------------ */
+/* Turntable + framing                                                 */
+/* ------------------------------------------------------------------ */
+
 /** Thin glowing ring on the floor, tinted with the current accent colour. */
 function Turntable({ accent }: { accent: string }) {
     const ring = useRef<THREE.MeshBasicMaterial>(null);
-    const glow = useRef<THREE.MeshBasicMaterial>(null);
     const target = useMemo(() => new THREE.Color(), []);
 
     useFrame((state, delta) => {
-        target.set(accent);
-        const t = 1 - Math.exp(-delta * 4);
-        ring.current?.color.lerp(target, t);
-        glow.current?.color.lerp(target, t);
-        if (ring.current) ring.current.opacity = 0.55 + Math.sin(state.clock.elapsedTime * 1.2) * 0.12;
+        if (!ring.current) return;
+        target.set(accent).multiplyScalar(1.6);
+        ring.current.color.lerp(target, 1 - Math.exp(-delta * 4));
+        ring.current.opacity = 0.6 + Math.sin(state.clock.elapsedTime * 1.2) * 0.15;
     });
 
     return (
-        <group position={[0, 0.004, 0]} rotation-x={-Math.PI / 2}>
-            <mesh>
-                <ringGeometry args={[3.35, 3.38, 128]} />
-                <meshBasicMaterial ref={ring} transparent toneMapped={false} />
-            </mesh>
-            <mesh>
-                <ringGeometry args={[3.2, 3.6, 128]} />
-                <meshBasicMaterial ref={glow} transparent opacity={0.07} toneMapped={false} depthWrite={false} />
-            </mesh>
-        </group>
+        <mesh position={[0, 0.006, 0]} rotation-x={-Math.PI / 2}>
+            <ringGeometry args={[3.35, 3.39, 160]} />
+            <meshBasicMaterial ref={ring} transparent toneMapped={false} />
+        </mesh>
     );
 }
 
@@ -178,11 +260,14 @@ function ViewOffset({ panelOpen }: { panelOpen: boolean }) {
     const size = useThree((state) => state.size);
     const current = useRef({ x: 0, y: 0 });
 
+    useLayoutEffect(() => () => camera.clearViewOffset(), [camera]);
+
     useFrame((_, delta) => {
         const { width, height } = size;
         let x = 0;
         let y = 0;
-        if (width >= 1024) {
+        // Desktop and landscape tablets: car to the right of the copy.
+        if (width >= 1024 || (width >= 700 && width / height > 1.2)) {
             // Positive x moves the car left, negative moves it right.
             x = panelOpen ? Math.min(220, width * 0.16) : -width * 0.14;
             y = -height * 0.02;

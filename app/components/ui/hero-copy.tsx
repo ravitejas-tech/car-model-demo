@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { HEADLINE_STATS, type Hotspot, type Paint } from "~/lib/showroom";
-import { ArrowIcon, CloseIcon } from "./icons";
+import { HEADLINE_STATS, type Paint } from "~/lib/showroom";
+import { ArrowIcon } from "./icons";
 
 /** Counts from 0 to `value` with an ease-out curve once `start` is true. */
 function useCountUp(value: number, start: boolean, duration = 1600) {
@@ -72,8 +72,8 @@ export function HeroCopy({ ready, hidden, paint, onReserve, onSpecs }: HeroCopyP
                     </h1>
 
                     <p className="reveal mt-5 hidden max-w-md text-base leading-relaxed text-white/55 sm:block" style={{ animationDelay: "320ms" }}>
-                        Classic muscle, modern precision. Spin it, tap the glowing points
-                        to explore, and see it in{" "}
+                        Classic muscle, modern precision. Spin it, pick a paint and set up
+                        your own garage. Now in{" "}
                         <span className="text-white transition-colors">{paint.name}</span>.
                     </p>
 
@@ -103,50 +103,5 @@ export function HeroCopy({ ready, hidden, paint, onReserve, onSpecs }: HeroCopyP
                 </div>
             </div>
         </section>
-    );
-}
-
-type HotspotCardProps = {
-    hotspot: Hotspot | null;
-    index: number;
-    total: number;
-    onClose: () => void;
-    onStep: (direction: 1 | -1) => void;
-};
-
-/** Detail card for the selected hotspot; replaces the hero copy while open. */
-export function HotspotCard({ hotspot, index, total, onClose, onStep }: HotspotCardProps) {
-    if (!hotspot) return null;
-    return (
-        <aside
-            key={hotspot.id}
-            className="glass reveal absolute inset-x-4 top-20 z-20 rounded-3xl p-6 sm:inset-x-auto sm:left-8 sm:top-1/2 sm:w-[360px] sm:-translate-y-1/2 sm:p-7"
-            aria-live="polite"
-        >
-            <div className="flex items-start justify-between gap-4">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-accent">
-                    Detail {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
-                </span>
-                <button type="button" onClick={onClose} className="-m-2 p-2 text-white/50 hover:text-white" aria-label="Close detail">
-                    <CloseIcon className="size-4" />
-                </button>
-            </div>
-            <h2 className="mt-3 text-2xl font-semibold tracking-tight">{hotspot.title}</h2>
-            <p className="mt-1 text-sm font-medium text-white/70">{hotspot.stat}</p>
-            <p className="mt-4 text-sm leading-relaxed text-white/50">{hotspot.body}</p>
-            <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
-                <button type="button" onClick={() => onStep(-1)} className="text-xs uppercase tracking-[0.2em] text-white/50 hover:text-white">
-                    ← Prev
-                </button>
-                <div className="flex gap-1.5">
-                    {Array.from({ length: total }, (_, i) => (
-                        <span key={i} className={`h-1 rounded-full transition-all ${i === index ? "w-5 bg-accent" : "w-1.5 bg-white/20"}`} />
-                    ))}
-                </div>
-                <button type="button" onClick={() => onStep(1)} className="text-xs uppercase tracking-[0.2em] text-white/50 hover:text-white">
-                    Next →
-                </button>
-            </div>
-        </aside>
     );
 }
