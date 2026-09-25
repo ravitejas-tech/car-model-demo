@@ -12,8 +12,11 @@ import * as THREE from "three";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { ROOM, type FloorFinish, type GarageTheme } from "~/lib/garage";
 import type { CameraShot, Paint } from "~/lib/showroom";
+import { engine, rpmNow, clock as engineClock, TIMELINE } from "~/lib/experience";
+import { flicker, INTRO, introTime, ramp, stage } from "~/lib/stage-state";
 import { CameraRig } from "./camera-rig";
 import { CarModel } from "./car-model";
+import { Dust, LightCone, PaintScanner, PowerDirector, StageRing } from "./effects";
 import { GarageRoom, makeConcreteTexture } from "./garage-room";
 
 type ShowroomStageProps = {
@@ -25,6 +28,12 @@ type ShowroomStageProps = {
     garage: GarageTheme;
     floor: FloorFinish["id"];
     lightLevel: number;
+    engineOn: boolean;
+    /** The visitor has pressed start: bring the garage up. */
+    entered: boolean;
+    /** Camera is directed (entry sequence) rather than user-controlled. */
+    directed: boolean;
+    rotateSpeed?: number;
     onReady: () => void;
     onUserInteract: () => void;
 };
@@ -56,11 +65,15 @@ export function ShowroomStage(props: ShowroomStageProps) {
             {/* Distant walls melt into darkness; the lit bay stays crisp. */}
             <fog attach="fog" args={[garage.background, 11, 28]} />
 
-            <ViewOffset panelOpen={props.panelOpen} />
+            <PowerDirector ready={props.ready} entered={props.entered} engineOn={props.engineOn} themeKey={garage.id} paintKey={paint.id} />
+            <EnvironmentLevel level={lightLevel} />
+            <ViewOffset panelOpen={props.panelOpen} centered={props.directed} />
             <CameraRig
                 shot={props.shot}
                 ready={props.ready}
                 autoRotate={props.autoRotate}
+                rotateSpeed={props.rotateSpeed}
+                interactive={!props.directed}
                 onUserInteract={props.onUserInteract}
             />
 
@@ -68,12 +81,26 @@ export function ShowroomStage(props: ShowroomStageProps) {
 
             <GarageRoom theme={garage} accent={paint.accent} lightLevel={lightLevel} variant="scene" />
             <GarageFloor finish={props.floor} lowQuality={lowQuality} />
-            <Turntable accent={paint.accent} />
+            <StageRing accent={paint.accent} />
+            <PaintScanner accent={paint.accent} />
+
+            {/* A visible shaft of light over the car, with dust drifting through it. */}
+            <LightCone
+                color={fixtureColor}
+                opacity={0.075 * lightLevel}
+                length={ROOM.height - 0.1}
+                radius={3.1}
+                falloff={1.1}
+                position={[0, ROOM.height - 0.1, 0]}
+                target={[0, 0, 0]}
+                level={() => stage.room}
+            />
+            <Dust color={fixtureColor} />
 
             <Suspense fallback={null}>
-                <CarModel paint={paint} onReady={props.onReady} />
+                <CarModel paint={paint} lowQuality={lowQuality} onReady={props.onReady} />
                 {/* The car never moves, so the soft shadow is baked once. */}
-                <ContactShadows position={[0, 0.005, 0]} scale={9} blur={2.2} far={2} opacity={0.8} resolution={512} frames={1} />
+                <ContactShadows position={[0, 0.005, 0]} scale={9} blur={2.2} far={2} opacity={0.85} resolution={512} frames={1} />
             </Suspense>
 
             {/*
@@ -85,7 +112,6 @@ export function ShowroomStage(props: ShowroomStageProps) {
                 key={`${garage.id}-${props.floor}-${garage.lightColor === "accent" || garage.wallDetail === "neon" ? paint.accent : ""}`}
                 resolution={512}
                 frames={1}
-                environmentIntensity={0.3 + 0.7 * lightLevel}
             >
                 <group position={[0, -1, 0]}>
                     <GarageRoom theme={garage} accent={paint.accent} lightLevel={1} variant="environment" />
@@ -108,35 +134,74 @@ export function ShowroomStage(props: ShowroomStageProps) {
 
 let rectLightsReady = false;
 
+/** Reflections fade up with the room during the intro. */
+function EnvironmentLevel({ level }: { level: number }) {
+    const scene = useThree((state) => state.scene);
+    useFrame(() => {
+        scene.environmentIntensity = (0.3 + 0.7 * level) * (0.04 + 0.96 * stage.room);
+    });
+    return null;
+}
+
 /**
  * Low-key lighting: a pool of light on the car, a faint fill, and rim lights
  * in the paint's accent colour so the body's silhouette glows against the dark.
+ * Every light follows the intro timeline: rim first, then the ceiling.
  */
 function RoomLights({ color, accent, level, castShadow }: { color: string; accent: string; level: number; castShadow: boolean }) {
     if (!rectLightsReady && typeof window !== "undefined") {
         RectAreaLightUniformsLib.init();
         rectLightsReady = true;
     }
+    const ambient = useRef<THREE.AmbientLight>(null);
+    const hemi = useRef<THREE.HemisphereLight>(null);
+    const area = useRef<THREE.RectAreaLight>(null);
+    const rim = useRef<THREE.SpotLight>(null);
+    const key = useRef<THREE.SpotLight>(null);
+    const edge = useRef<THREE.SpotLight>(null);
+    const rimTarget = useMemo(() => new THREE.Object3D(), []);
+
+    useFrame(({ clock }) => {
+        const now = clock.elapsedTime;
+        const t = introTime(now);
+        const fixtures = stage.fixturesStart < 0 ? 0 : flicker(now - stage.fixturesStart);
+        const room = stage.room;
+        if (ambient.current) ambient.current.intensity = 0.02 * level * room;
+        if (hemi.current) hemi.current.intensity = 0.08 * level * room;
+        if (area.current) area.current.intensity = 1.5 * level * fixtures;
+        if (key.current) key.current.intensity = 26 * level * fixtures * (0.25 + 0.75 * room);
+        // Before entry the rim light alone outlines the car; it firms up with the room.
+        const gate = stage.gateStart < 0 ? 0 : ramp(now - stage.gateStart, 0, 2.4) * 0.8;
+        if (rim.current) rim.current.intensity = 10 * level * Math.max(gate, ramp(t, INTRO.rim, 0.9));
+        if (edge.current) edge.current.intensity = 6 * gate * (1 - room);
+    });
+
     return (
         <>
-            <ambientLight intensity={0.02 * level} />
-            <hemisphereLight args={[color, "#000000", 0.08 * level]} />
+            <ambientLight ref={ambient} intensity={0} />
+            <hemisphereLight ref={hemi} args={[color, "#000000", 0]} />
             <rectAreaLight
+                ref={area}
                 position={[0, ROOM.height - 0.1, 0]}
                 rotation-x={-Math.PI / 2}
                 width={6}
                 height={8.5}
                 color={color}
-                intensity={1.5 * level}
+                intensity={0}
             />
             {/* Accent rim light from behind, aimed at the body so it doesn't pool on the floor. */}
-            <spotLight position={[-5, 3.2, -7]} target-position={[0, 0.9, 0]} angle={0.28} penumbra={1} decay={1.2} intensity={10 * level} color={accent} />
+            <primitive object={rimTarget} position={[-0.2, 0.7, -0.3]} />
+            {/* Steep enough that the part of the beam that misses the car lands underneath it. */}
+            <spotLight ref={rim} target={rimTarget} position={[-5, 4, -7]} angle={0.28} penumbra={1} decay={1.2} distance={10.5} intensity={0} color={accent} />
+            {/* Cool top-edge light for the waiting silhouette; fades as the room comes up. */}
+            <spotLight ref={edge} target={rimTarget} position={[4.5, 4, -5]} angle={0.3} penumbra={1} decay={1.2} distance={9.5} intensity={0} color="#cfd8ff" />
             <spotLight
+                ref={key}
                 position={[0, ROOM.height - 0.2, 0]}
                 angle={0.62}
                 penumbra={0.9}
                 decay={1.2}
-                intensity={26 * level}
+                intensity={0}
                 color={color}
                 castShadow={castShadow}
                 shadow-mapSize={[1024, 1024]}
@@ -238,53 +303,53 @@ function GarageFloor({ finish, lowQuality }: { finish: FloorFinish["id"]; lowQua
 /* Turntable + framing                                                 */
 /* ------------------------------------------------------------------ */
 
-/** Thin glowing ring on the floor, tinted with the current accent colour. */
-function Turntable({ accent }: { accent: string }) {
-    const ring = useRef<THREE.MeshBasicMaterial>(null);
-    const target = useMemo(() => new THREE.Color(), []);
-
-    useFrame((state, delta) => {
-        if (!ring.current) return;
-        target.set(accent).multiplyScalar(1.25);
-        ring.current.color.lerp(target, 1 - Math.exp(-delta * 4));
-        ring.current.opacity = 0.6 + Math.sin(state.clock.elapsedTime * 1.2) * 0.15;
-    });
-
-    return (
-        <mesh position={[0, 0.006, 0]} rotation-x={-Math.PI / 2}>
-            <ringGeometry args={[3.35, 3.39, 160]} />
-            <meshBasicMaterial ref={ring} transparent toneMapped={false} />
-        </mesh>
-    );
-}
-
 /**
  * Shifts the rendered frame (not the orbit centre) so the car sits beside the
  * copy on wide screens and centres itself when the specs panel opens.
  */
-function ViewOffset({ panelOpen }: { panelOpen: boolean }) {
+function ViewOffset({ panelOpen, centered }: { panelOpen: boolean; centered: boolean }) {
     const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
     const size = useThree((state) => state.size);
     const current = useRef({ x: 0, y: 0 });
+    const reducedMotion = useRef(false);
 
-    useLayoutEffect(() => () => camera.clearViewOffset(), [camera]);
+    useLayoutEffect(() => {
+        reducedMotion.current = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        return () => camera.clearViewOffset();
+    }, [camera]);
 
     useFrame((_, delta) => {
         const { width, height } = size;
         let x = 0;
         let y = 0;
-        // Desktop and landscape tablets: car to the right of the copy.
-        if (width >= 1024 || (width >= 700 && width / height > 1.2)) {
-            // Positive x moves the car left, negative moves it right.
-            x = panelOpen ? Math.min(220, width * 0.16) : -width * 0.14;
-            y = -height * 0.02;
+        if (centered) {
+            // Entry: car dead centre, lifted to sit above the start button.
+            y = height * 0.07;
+        } else if (width >= 1024) {
+            // Positive x moves the car left: centre it in the space left of the
+            // configurator rail (or the specs panel).
+            x = panelOpen ? Math.min(240, width * 0.15) : Math.min(200, width * 0.11);
+            // Sit the car a touch low, clear of the headline.
+            y = -height * 0.035;
+        } else if (width >= 700 && width / height > 1.2) {
+            x = 0;
+            y = 0;
         } else {
             y = panelOpen ? height * 0.18 : -height * 0.02;
         }
         const t = 1 - Math.exp(-delta * 4);
         current.current.x = THREE.MathUtils.lerp(current.current.x, x, t);
         current.current.y = THREE.MathUtils.lerp(current.current.y, y, t);
-        camera.setViewOffset(width, height, current.current.x, current.current.y, width, height);
+        // Starter judder, then a jolt as the engine catches and revs.
+        let shake = 0;
+        const e = engine.get();
+        const since = engineClock() - e.startedAt;
+        if (!reducedMotion.current && e.phase === "running" && since < TIMELINE.settled) {
+            shake = since < TIMELINE.catch ? 1.1 : Math.max(0, (rpmNow() - 1200) / 2400) * 5;
+        }
+        const jx = (Math.random() - 0.5) * shake;
+        const jy = (Math.random() - 0.5) * shake;
+        camera.setViewOffset(width, height, current.current.x + jx, current.current.y + jy, width, height);
     });
 
     return null;

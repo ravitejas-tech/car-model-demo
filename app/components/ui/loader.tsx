@@ -1,6 +1,5 @@
 import { useProgress } from "@react-three/drei";
 import { useEffect, useState } from "react";
-import { LogoMark } from "./icons";
 
 /** Full-screen loader that tracks the GLB download and fades away once ready. */
 export function Loader({ ready }: { ready: boolean }) {
@@ -16,7 +15,7 @@ export function Loader({ ready }: { ready: boolean }) {
 
     useEffect(() => {
         if (!ready) return;
-        const id = setTimeout(() => setGone(true), 900);
+        const id = setTimeout(() => setGone(true), 1300);
         return () => clearTimeout(id);
     }, [ready]);
 
@@ -25,25 +24,18 @@ export function Loader({ ready }: { ready: boolean }) {
 
     return (
         <div
-            className={`fixed inset-0 z-50 grid place-items-center bg-[#08090b] transition-opacity duration-700 ${
+            className={`fixed inset-0 z-50 grid place-items-center bg-black transition-opacity duration-[1200ms] ${
                 ready ? "pointer-events-none opacity-0" : "opacity-100"
             }`}
             role="status"
             aria-live="polite"
         >
-            <div className="flex w-64 flex-col items-center gap-6">
-                <LogoMark className="size-12 animate-pulse" />
-                <div className="font-display text-sm tracking-[0.5em] text-white/80">VELOCITY</div>
-                <div className="h-px w-full overflow-hidden bg-white/10">
-                    <div
-                        className="h-full bg-accent shadow-[0_0_12px_var(--accent)] transition-[width] duration-300"
-                        style={{ width: `${percent}%` }}
-                    />
+            <div className="flex w-56 flex-col items-center gap-5">
+                <div className="font-display text-[11px] tracking-[0.7em] text-white/70">VELOCITY</div>
+                <div className="h-px w-full overflow-hidden bg-white/[0.08]">
+                    <div className="h-full bg-white/70 transition-[width] duration-500 ease-out" style={{ width: `${percent}%` }} />
                 </div>
-                <div className="flex w-full justify-between text-[10px] uppercase tracking-[0.3em] text-white/40">
-                    <span>Preparing showroom</span>
-                    <span className="tabular-nums text-white/70">{percent}%</span>
-                </div>
+                <div className="font-mono text-[9px] tabular-nums tracking-[0.4em] text-white/35">{String(percent).padStart(3, "0")}</div>
             </div>
         </div>
     );

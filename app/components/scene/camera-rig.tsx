@@ -3,12 +3,17 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { ROOM } from "~/lib/garage";
+import { stage } from "~/lib/stage-state";
 import type { CameraShot } from "~/lib/showroom";
 
 type CameraRigProps = {
     shot: CameraShot;
     ready: boolean;
     autoRotate: boolean;
+    /** Radians per second while auto-rotating (a slow drift before entry). */
+    rotateSpeed?: number;
+    /** Before entry the camera is directed, not user-controlled. */
+    interactive?: boolean;
     onUserInteract: () => void;
 };
 
@@ -19,13 +24,13 @@ const DESKTOP_FOV = 32;
 const CEILING_MARGIN = 0.5;
 const WALL_MARGIN = 1.2;
 
-export function CameraRig({ shot, ready, autoRotate, onUserInteract }: CameraRigProps) {
+export function CameraRig({ shot, ready, autoRotate, rotateSpeed = 0.14, interactive = true, onUserInteract }: CameraRigProps) {
     const controls = useRef<CameraControls>(null);
     const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
     const aspect = useThree((state) => state.size.width / state.size.height);
     const dragging = useRef(false);
     const idleFor = useRef(0);
-    const introDone = useRef(false);
+    const moving = useRef(0);
 
     // Portrait screens: step back a little and widen the lens, rather than
     // backing the camera through the garage wall.
@@ -47,11 +52,11 @@ export function CameraRig({ shot, ready, autoRotate, onUserInteract }: CameraRig
         const px = tx + (shot.position[0] - tx) * distanceScale;
         const py = ty + (shot.position[1] - ty) * distanceScale;
         const pz = tz + (shot.position[2] - tz) * distanceScale;
-        // Slow, cinematic fly-in on first load, snappier transitions afterwards.
-        ctl.smoothTime = introDone.current ? 0.55 : 1.4;
-        introDone.current = true;
+        ctl.smoothTime = shot.smoothTime ?? 0.55;
+        // Hold off auto-rotation until a directed move has mostly settled.
+        moving.current = (shot.smoothTime ?? 0.55) * 1.6;
         idleFor.current = 0;
-        ctl.setLookAt(px, Math.min(py, ROOM.height - CEILING_MARGIN), pz, tx, ty, tz, true);
+        ctl.setLookAt(px, Math.min(py, ROOM.height - CEILING_MARGIN), pz, tx, ty, tz, (shot.smoothTime ?? 1) > 0.05);
     }, [shot, ready, distanceScale]);
 
     useFrame((_, delta) => {
@@ -70,12 +75,20 @@ export function CameraRig({ shot, ready, autoRotate, onUserInteract }: CameraRig
         // cooperate with animated view transitions.
         ctl.maxDistance = Math.max(ctl.minDistance, Math.min(12, byCeiling, byWall));
 
+        // Readout for the HUD.
+        stage.azimuth = ((THREE.MathUtils.radToDeg(ctl.azimuthAngle) % 360) + 360) % 360;
+        stage.elevation = 90 - THREE.MathUtils.radToDeg(polar);
+        stage.distance = ctl.distance;
+
         if (dragging.current) return;
+        moving.current -= delta;
+        if (moving.current > 0) return;
         idleFor.current += delta;
-        if (autoRotate && idleFor.current > IDLE_DELAY) {
+        const wait = interactive ? IDLE_DELAY : 0;
+        if (autoRotate && idleFor.current > wait) {
             // Ease in the rotation speed so it never starts with a jolt.
-            const ramp = Math.min(1, (idleFor.current - IDLE_DELAY) / 1.5);
-            ctl.azimuthAngle += delta * 0.14 * ramp;
+            const ramp = Math.min(1, (idleFor.current - wait) / 1.5);
+            ctl.azimuthAngle += delta * rotateSpeed * ramp;
         }
     });
 
@@ -83,6 +96,7 @@ export function CameraRig({ shot, ready, autoRotate, onUserInteract }: CameraRig
         <CameraControls
             ref={controls}
             makeDefault
+            enabled={interactive}
             minDistance={3.2}
             minPolarAngle={0.55}
             maxPolarAngle={Math.PI / 2 + 0.04}

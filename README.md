@@ -1,16 +1,30 @@
 # Velocity GT — Interactive 3D Showroom
 
-A single-page, interactive car showroom built with React Router 7, React Three Fiber and Tailwind CSS 4.
+A single-page, interactive car showroom built with React Router 7, React Three Fiber and Tailwind CSS 4. The concept is **a private garage after dark**: you start the car, the room wakes up around it, and the car is the brightest thing in it. The UI stays quiet so the car does the talking.
+
+## The entry
+
+1. **Black screen, thin loading line.**
+2. **The gate.** Letterbox bars and a silhouette of the car, edged by a rim light while the camera drifts slowly. The only control is a push-to-start button ("Enter silently" skips the sound; `Enter` also works).
+3. **Ignition.** The starter cranks and the frame judders. The engine catches with a rev, and the headlights and taillights double-flash on.
+4. **Lights.** The ceiling lights strike one after another, rippling out from the car with a switch clunk each. A shaft of light and drifting dust fill the bay, and a thin ring draws itself around the car.
+5. **Reveal.** The camera makes a long, slow pull-back to the hero shot while a title card plays. The letterbox bars retract and the UI rises in.
 
 ## What you can do
 
-- **Orbit the car.** Drag to rotate and scroll or pinch to zoom. It auto-rotates when idle and pauses while you interact.
-- **Change the paint.** Seven finishes blend smoothly on the car, and the whole UI accent (buttons, rim light, turntable glow) follows the paint.
-- **Jump between camera angles.** 360°, Front, Side, Rear and Top, each with a smooth camera flight.
-- **Customise the garage.** Open the Garage tab to choose a room (Hex Garage, Neon Night, Concrete Loft, Carbon Studio), a floor (gloss epoxy, polished concrete, checker tiles) and the lighting level. Every room is low-key: a pool of light on the car, accent rim lighting, and walls that fade into darkness, so the paint stands out. The room is procedural geometry, and the paint reflects it.
-- **View specs.** A side sheet on desktop or a bottom sheet on mobile, with animated performance bars.
-- **Reserve or book a test drive.** A dialog shows your configuration summary and price. Demo only; nothing is sent anywhere.
-- **Use keyboard shortcuts.** `←` / `→` cycle paint, `1`–`5` switch camera angles, `Esc` closes panels.
+- **Rev it.** Tap **REV** or press `Space` for a throttle blip. You get the sound, the needle, and the body squats and rolls with the V8's torque. `E` stops or restarts the engine.
+- **Change the paint.** Seven lacquered dots, bottom right. A scanner gantry sweeps nose to tail and repaints the car as it passes, with a glowing seam on the bodywork and a laser line on the floor.
+- **Customize.** The popover next to the paints holds the garage (Hex, Neon, Concrete, Carbon), the floor (gloss epoxy, polished concrete, checker tiles), the light level and camera angles. The paint reflects the room.
+- **Orbit.** Drag to rotate and scroll or pinch to zoom. Once you let go it slowly orbits again.
+- **Specs, test drive, reserve.** Demo only; nothing is sent anywhere.
+
+## Sound
+
+All audio is synthesized with WebAudio in `app/lib/engine-audio.ts`, with no audio files. It includes the V8 start-up and lumpy idle, throttle blips, light-switch clunks and a scanner whoosh. The engine sound, rev counter, headlights, body motion and camera shake all read one rpm curve from `app/lib/experience.ts`, so they stay in sync. A header toggle mutes it.
+
+## How the scene is orchestrated
+
+`app/lib/stage-state.ts` holds a small mutable store (gate/intro times, room power, engine level, rpm, paint-scan time) that scene components read inside `useFrame`. Per-frame animation therefore never goes through React state. `INTRO` in that file and `ENTRY` in `routes/home.tsx` set the choreography.
 
 ## Performance notes
 
@@ -54,12 +68,17 @@ Don't merge materials (no `palette()`), or the paint can no longer be targeted.
 app/
   lib/showroom.ts            paints, camera views, specs data
   lib/garage.ts              garage themes, floor finishes, room size
+  lib/stage-state.ts         shared animation state and intro timeline
   components/scene/          everything inside the <Canvas>
     showroom-stage.tsx       canvas, lights, floor finishes, bloom, reflections, view offset
-    garage-room.tsx          procedural garage: walls, ceiling fixtures, slats, neon, sign
+    garage-room.tsx          procedural garage: walls, ceiling fixtures (ripple power-on), slats, neon
+    effects.tsx              intro director, light cones, dust, paint-scanner gantry, stage ring
+    car-lights.tsx           headlights, beams, taillights, engine idle motion
     camera-rig.tsx           camera controls, view transitions, auto-rotate, stays inside the room
-    car-model.tsx            model loading, sizing, paint blending
-  components/ui/             DOM overlay: header, hero, dock, specs, dialog, loader
+    car-model.tsx            model loading, sizing, paint-scanner shader
+  components/ui/             DOM overlay: entry, header, title, paint bar + customize, ignition, specs, dialog, loader
+  lib/experience.ts          engine state and the shared rpm timeline
+  lib/engine-audio.ts        WebAudio engine, switch and scanner sounds
   routes/home.tsx            state and wiring
 ```
 
