@@ -8,18 +8,26 @@ import { Loader } from "~/components/ui/loader";
 import { PaintBar } from "~/components/ui/paint-bar";
 import { ReserveDialog, type ReserveMode } from "~/components/ui/reserve-dialog";
 import { SpecsPanel } from "~/components/ui/specs-panel";
+import { ViewRail } from "~/components/ui/view-rail";
 import { engineAudio } from "~/lib/engine-audio";
 import { engine, TIMELINE, useEngine } from "~/lib/experience";
 import { GARAGE_THEMES, type FloorFinish } from "~/lib/garage";
-import { GATE_SHOT, IGNITION_SHOT, PAINTS, REVEAL_SHOT, VIEW_ORDER, VIEWS, type CameraShot, type ViewId } from "~/lib/showroom";
+import { GATE_SHOT, IGNITION_SHOT, LOOKUP_SHOT, PAINTS, REVEAL_SHOT, VIEW_ORDER, VIEWS, type CameraShot, type ViewId } from "~/lib/showroom";
 import { INTRO, SCAN_SECONDS } from "~/lib/stage-state";
 
-/** Entry choreography, in seconds after pressing start. */
+/**
+ * Entry choreography, in seconds after pressing start:
+ * crank → catch (headlights) → camera tilts up → ceiling lights strike in a
+ * ripple → a shaft of light pours onto the car → camera tilts down onto it →
+ * the letterbox opens and the page rises in.
+ */
 const ENTRY = {
-    /** Camera begins its long pull-back once the first lights strike. */
-    pullBack: TIMELINE.catch + 0.2 + INTRO.fixtures + 0.1,
-    /** Letterbox retracts and the UI rises. */
-    live: 4.4,
+    /** Tilt up into the dark ceiling while the starter cranks. */
+    lookUp: 0.15,
+    /** Tilt down onto the car just as the light reaches it. */
+    reveal: TIMELINE.catch + 0.2 + INTRO.keyLight - 0.1,
+    /** Letterbox retracts and the UI rises, once the camera has landed. */
+    live: TIMELINE.catch + 0.2 + INTRO.keyLight + 2.3,
 };
 
 export default function Showroom() {
@@ -79,10 +87,13 @@ export default function Showroom() {
         [0, 0.16, 0.33, 0.62].forEach((delay, i) => engineAudio.lightSwitch(fixturesAt + delay, 1 - i * 0.1));
 
         setEntry("intro");
-        later(ENTRY.pullBack, () => setShot({ ...REVEAL_SHOT }));
+        setAutoRotate(false);
+        later(ENTRY.lookUp, () => setShot({ ...LOOKUP_SHOT }));
+        later(ENTRY.reveal, () => setShot({ ...REVEAL_SHOT }));
         later(ENTRY.live, () => {
             setEntry("live");
             setView("hero");
+            setAutoRotate(true);
         });
     }, [entry]);
 
@@ -215,7 +226,7 @@ export default function Showroom() {
 
             {live && (
                 <>
-                    <div className="rise pointer-events-auto absolute bottom-[112px] left-1/2 z-20 -translate-x-1/2 sm:bottom-8" style={{ animationDelay: "240ms" }}>
+                    <div className="rise pointer-events-auto absolute bottom-[146px] left-1/2 z-20 -translate-x-1/2 sm:bottom-[140px] lg:bottom-8" style={{ animationDelay: "240ms" }}>
                         <IgnitionButton on={engineOn} onToggle={toggleEngine} onRev={rev} size="sm" />
                     </div>
                     {!specsOpen && (
@@ -224,15 +235,14 @@ export default function Showroom() {
                             garage={garage}
                             floor={floor}
                             lightLevel={lightLevel}
-                            view={view}
-                            autoRotate={autoRotate}
                             onPaint={setPaint}
                             onGarage={setGarage}
                             onFloor={setFloor}
                             onLightLevel={setLightLevel}
-                            onView={goToView}
-                            onToggleRotate={() => setAutoRotate((value) => !value)}
                         />
+                    )}
+                    {!specsOpen && (
+                        <ViewRail view={view} autoRotate={autoRotate} onView={goToView} onToggleRotate={() => setAutoRotate((value) => !value)} />
                     )}
                 </>
             )}

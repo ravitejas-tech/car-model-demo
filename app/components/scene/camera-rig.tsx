@@ -49,15 +49,16 @@ export function CameraRig({ shot, ready, autoRotate, rotateSpeed = 0.14, interac
         const ctl = controls.current;
         if (!ctl || !ready) return;
         const [tx, ty, tz] = shot.target;
-        const px = tx + (shot.position[0] - tx) * distanceScale;
-        const py = ty + (shot.position[1] - ty) * distanceScale;
-        const pz = tz + (shot.position[2] - tz) * distanceScale;
+        const scale = portrait ? (shot.portraitScale ?? distanceScale) : 1;
+        const px = tx + (shot.position[0] - tx) * scale;
+        const py = ty + (shot.position[1] - ty) * scale;
+        const pz = tz + (shot.position[2] - tz) * scale;
         ctl.smoothTime = shot.smoothTime ?? 0.55;
         // Hold off auto-rotation until a directed move has mostly settled.
         moving.current = (shot.smoothTime ?? 0.55) * 1.6;
         idleFor.current = 0;
         ctl.setLookAt(px, Math.min(py, ROOM.height - CEILING_MARGIN), pz, tx, ty, tz, (shot.smoothTime ?? 1) > 0.05);
-    }, [shot, ready, distanceScale]);
+    }, [shot, ready, distanceScale, portrait]);
 
     useFrame((_, delta) => {
         const ctl = controls.current;
@@ -99,7 +100,8 @@ export function CameraRig({ shot, ready, autoRotate, rotateSpeed = 0.14, interac
             enabled={interactive}
             minDistance={3.2}
             minPolarAngle={0.55}
-            maxPolarAngle={Math.PI / 2 + 0.04}
+            // During the entry the camera may tilt up at the ceiling; the visitor cannot.
+            maxPolarAngle={interactive ? Math.PI / 2 + 0.04 : 2.4}
             dollySpeed={0.4}
             truckSpeed={0}
             onStart={() => {

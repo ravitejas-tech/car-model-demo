@@ -12,7 +12,7 @@ import * as THREE from "three";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { ROOM, type FloorFinish, type GarageTheme } from "~/lib/garage";
 import type { CameraShot, Paint } from "~/lib/showroom";
-import { engine, rpmNow, clock as engineClock, TIMELINE } from "~/lib/experience";
+import { engine, clock as engineClock, TIMELINE } from "~/lib/experience";
 import { flicker, INTRO, introTime, ramp, stage } from "~/lib/stage-state";
 import { CameraRig } from "./camera-rig";
 import { CarModel } from "./car-model";
@@ -39,35 +39,35 @@ type ShowroomStageProps = {
 };
 
 export function ShowroomStage(props: ShowroomStageProps) {
-    const [dpr, setDpr] = useState(1.5);
-    // Weak GPUs (or ?quality=low) get a plain floor, no bloom and no real-time shadows.
-    const [lowQuality, setLowQuality] = useState(
+    // ?quality=low (or a GPU that can't keep up, detected after the entry)
+    // gets a plain floor and no bloom. Shadows and resolution never change at
+    // runtime: toggling them rebuilds every shader, which flashes the screen black.
+    const [forcedLow] = useState(
         () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("quality") === "low"
     );
+    const [slowGpu, setSlowGpu] = useState(false);
+    const lowQuality = forcedLow || slowGpu;
     const { garage, paint, lightLevel } = props;
     const fixtureColor = garage.lightColor === "accent" ? paint.accent : garage.lightColor;
 
     return (
         <Canvas
             className="!absolute inset-0"
-            dpr={lowQuality ? 1 : dpr}
-            shadows={!lowQuality}
+            dpr={forcedLow ? 1 : [1, 1.75]}
+            shadows={!forcedLow}
             gl={{ antialias: true, powerPreference: "high-performance" }}
             camera={{ position: [7.5, 3, 8], fov: 32, near: 0.1, far: 80 }}
         >
-            <PerformanceMonitor
-                onIncline={() => setDpr(2)}
-                onDecline={() => setDpr(1)}
-                flipflops={3}
-                onFallback={() => setLowQuality(true)}
-            />
+            {/* Only judge performance once the entry has settled, never during it. */}
+            {!props.directed && !lowQuality && <PerformanceMonitor ms={400} iterations={12} bounds={() => [24, 90]} flipflops={2} onFallback={() => setSlowGpu(true)} />}
+            <Prewarm ready={props.ready} />
             <color attach="background" args={[garage.background]} />
             {/* Distant walls melt into darkness; the lit bay stays crisp. */}
             <fog attach="fog" args={[garage.background, 11, 28]} />
 
-            <PowerDirector ready={props.ready} entered={props.entered} engineOn={props.engineOn} themeKey={garage.id} paintKey={paint.id} />
+            <PowerDirector ready={props.ready} entered={props.entered} live={!props.directed} engineOn={props.engineOn} themeKey={garage.id} paintKey={paint.id} />
             <EnvironmentLevel level={lightLevel} />
-            <ViewOffset panelOpen={props.panelOpen} centered={props.directed} />
+            <ViewOffset panelOpen={props.panelOpen} />
             <CameraRig
                 shot={props.shot}
                 ready={props.ready}
@@ -94,6 +94,8 @@ export function ShowroomStage(props: ShowroomStageProps) {
                 position={[0, ROOM.height - 0.1, 0]}
                 target={[0, 0, 0]}
                 level={() => stage.room}
+                // The shaft of light pours down from the ceiling onto the car.
+                reach={(elapsed) => ramp(introTime(elapsed), INTRO.keyLight - 0.15, 0.9)}
             />
             <Dust color={fixtureColor} />
 
@@ -307,7 +309,7 @@ function GarageFloor({ finish, lowQuality }: { finish: FloorFinish["id"]; lowQua
  * Shifts the rendered frame (not the orbit centre) so the car sits beside the
  * copy on wide screens and centres itself when the specs panel opens.
  */
-function ViewOffset({ panelOpen, centered }: { panelOpen: boolean; centered: boolean }) {
+function ViewOffset({ panelOpen }: { panelOpen: boolean }) {
     const camera = useThree((state) => state.camera) as THREE.PerspectiveCamera;
     const size = useThree((state) => state.size);
     const current = useRef({ x: 0, y: 0 });
@@ -322,15 +324,11 @@ function ViewOffset({ panelOpen, centered }: { panelOpen: boolean; centered: boo
         const { width, height } = size;
         let x = 0;
         let y = 0;
-        if (centered) {
-            // Entry: car dead centre, lifted to sit above the start button.
-            y = height * 0.07;
-        } else if (width >= 1024) {
-            // Positive x moves the car left: centre it in the space left of the
-            // configurator rail (or the specs panel).
-            x = panelOpen ? Math.min(240, width * 0.15) : Math.min(200, width * 0.11);
-            // Sit the car a touch low, clear of the headline.
-            y = -height * 0.035;
+        if (width >= 1024) {
+            // Car centred; slide it left only when the specs panel is open.
+            // A slight lift keeps it clear of the controls along the bottom.
+            x = panelOpen ? Math.min(240, width * 0.15) : 0;
+            y = height * 0.04;
         } else if (width >= 700 && width / height > 1.2) {
             x = 0;
             y = 0;
@@ -340,17 +338,35 @@ function ViewOffset({ panelOpen, centered }: { panelOpen: boolean; centered: boo
         const t = 1 - Math.exp(-delta * 4);
         current.current.x = THREE.MathUtils.lerp(current.current.x, x, t);
         current.current.y = THREE.MathUtils.lerp(current.current.y, y, t);
-        // Starter judder, then a jolt as the engine catches and revs.
+        // One short jolt as the engine catches: nothing before, nothing after.
         let shake = 0;
         const e = engine.get();
-        const since = engineClock() - e.startedAt;
-        if (!reducedMotion.current && e.phase === "running" && since < TIMELINE.settled) {
-            shake = since < TIMELINE.catch ? 1.1 : Math.max(0, (rpmNow() - 1200) / 2400) * 5;
+        const since = engineClock() - e.startedAt - TIMELINE.catch;
+        if (!reducedMotion.current && e.phase === "running" && since >= 0 && since < 0.35) {
+            shake = 3.5 * (1 - since / 0.35);
         }
         const jx = (Math.random() - 0.5) * shake;
         const jy = (Math.random() - 0.5) * shake;
         camera.setViewOffset(width, height, current.current.x + jx, current.current.y + jy, width, height);
     });
 
+    return null;
+}
+
+/**
+ * Compile every shader up front, while the visitor is looking at the gate, so
+ * nothing stalls the first time it lights up during the entry.
+ */
+function Prewarm({ ready }: { ready: boolean }) {
+    const gl = useThree((state) => state.gl);
+    const scene = useThree((state) => state.scene);
+    const camera = useThree((state) => state.camera);
+    const done = useRef(false);
+    useFrame(() => {
+        if (!ready || done.current) return;
+        done.current = true;
+        // compileAsync lets the driver build programs in parallel where supported.
+        void gl.compileAsync(scene, camera).catch(() => gl.compile(scene, camera));
+    });
     return null;
 }

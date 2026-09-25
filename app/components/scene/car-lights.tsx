@@ -1,6 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { blipRpm, clock as clock_, engine } from "~/lib/experience";
 import { stage } from "~/lib/stage-state";
 import { LightCone } from "./effects";
 
@@ -22,6 +23,7 @@ const HEADLIGHT_COLOR = "#eef4ff";
 
 export function CarLights({ scene, lowQuality }: { scene: THREE.Object3D; lowQuality: boolean }) {
     const discs = useRef<THREE.MeshBasicMaterial[]>([]);
+    const discMeshes = useRef<THREE.Mesh[]>([]);
     const halos = useRef<THREE.SpriteMaterial[]>([]);
     const beams = useRef<THREE.SpotLight[]>([]);
     const tailGlow = useRef<THREE.PointLight>(null);
@@ -51,12 +53,13 @@ export function CarLights({ scene, lowQuality }: { scene: THREE.Object3D; lowQua
 
     useFrame(() => {
         const e = stage.engine;
-        // Unlit, the glow discs disappear and the model's own glass shows.
+        // Unlit, the glow discs shrink away and the model's own glass shows.
+        // (Scaling rather than hiding keeps their shader compiled up front.)
         discs.current.forEach((m) => {
             if (!m) return;
             m.color.copy(white).multiplyScalar(e * 5);
-            m.visible = e > 0.01;
         });
+        discMeshes.current.forEach((mesh) => mesh?.scale.setScalar(e > 0.01 ? 1 : 1e-4));
         halos.current.forEach((m) => {
             if (m) m.opacity = e * 0.85;
         });
@@ -72,7 +75,12 @@ export function CarLights({ scene, lowQuality }: { scene: THREE.Object3D; lowQua
             {LAMPS.map((lamp, i) => (
                 <group key={i} position={lamp.position} rotation-y={lamp.yaw}>
                     {/* Glowing lens */}
-                    <mesh position-z={1.2}>
+                    <mesh
+                        position-z={1.2}
+                        ref={(mesh) => {
+                            if (mesh) discMeshes.current[i] = mesh;
+                        }}
+                    >
                         <circleGeometry args={[LAMP_RADIUS, 40]} />
                         <meshBasicMaterial
                             ref={(m) => {
@@ -139,25 +147,24 @@ export function CarLights({ scene, lowQuality }: { scene: THREE.Object3D; lowQua
 }
 
 /**
- * Idle vibration, a rock when the engine catches, and on the throttle the
- * rear squats and the V8's torque rolls the body slightly.
+ * The body only moves when something happens: one short, damped rock as the
+ * engine catches, and a squat when you blip the throttle. Idling is still.
  */
 export function useEngineMotion(target: React.RefObject<THREE.Group | null>) {
     const load = useRef(0);
     useFrame(({ clock }, delta) => {
         const g = target.current;
         if (!g) return;
-        const t = clock.elapsedTime;
-        const running = stage.rpm > 150 ? 1 : 0;
-        const since = t - stage.engineStart;
-        const crank = since >= 0 && since < 1.4 ? Math.exp(-since * 4) * Math.sin(since * 26) : 0;
-        // Suspension lags the throttle a little.
-        const targetLoad = Math.min(1, Math.max(0, (stage.rpm - 950) / 3000));
+        const since = clock.elapsedTime - stage.engineStart;
+        const rock = since >= 0 && since < 0.9 ? Math.exp(-since * 6) * Math.sin(since * 22) : 0;
+        // Throttle blips only (not the start-up revs); the suspension lags a little.
+        const e = engine.get();
+        const blip = e.phase === "running" ? blipRpm(clock_() - e.blipAt) : 0;
+        const targetLoad = Math.min(1, blip / 3900);
         load.current += (targetLoad - load.current) * (1 - Math.exp(-delta * 7));
-        const shake = running * (0.0009 + load.current * 0.0012);
-        g.position.y = shake * Math.sin(t * 52) + crank * 0.012 - load.current * 0.004;
-        g.rotation.z = crank * 0.006 + shake * 0.5 * Math.sin(t * 37) + load.current * 0.006;
-        g.rotation.x = crank * -0.004 - load.current * 0.011;
+        g.position.y = rock * 0.004 - load.current * 0.004;
+        g.rotation.z = rock * 0.002 + load.current * 0.005;
+        g.rotation.x = rock * -0.0015 - load.current * 0.01;
     });
 }
 

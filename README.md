@@ -6,15 +6,18 @@ A single-page, interactive car showroom built with React Router 7, React Three F
 
 1. **Black screen, thin loading line.**
 2. **The gate.** Letterbox bars and a silhouette of the car, edged by a rim light while the camera drifts slowly. The only control is a push-to-start button ("Enter silently" skips the sound; `Enter` also works).
-3. **Ignition.** The starter cranks and the frame judders. The engine catches with a rev, and the headlights and taillights double-flash on.
-4. **Lights.** The ceiling lights strike one after another, rippling out from the car with a switch clunk each. A shaft of light and drifting dust fill the bay, and a thin ring draws itself around the car.
-5. **Reveal.** The camera makes a long, slow pull-back to the hero shot while a title card plays. The letterbox bars retract and the UI rises in.
+3. **Ignition.** The starter cranks and the engine catches with one short jolt and a rev. The headlights and taillights double-flash on.
+4. **Lights from the top.** The camera tilts up into the dark ceiling as the lights strike one after another, rippling out from above the car, each with a switch clunk.
+5. **Light falls on the car.** A shaft of light pours down from the ceiling. The camera tilts back down onto the lit car while a title card plays, then the letterbox bars retract and the page rises in. The ceiling settles to a dim glow.
+
+All shaders are compiled while the gate is showing, and quality/resolution never change during the entry, so nothing stalls or flashes black mid-sequence.
 
 ## What you can do
 
-- **Rev it.** Tap **REV** or press `Space` for a throttle blip. You get the sound, the needle, and the body squats and rolls with the V8's torque. `E` stops or restarts the engine.
+- **Rev it.** Tap **REV** or press `Space` for a throttle blip: sound, needle, and a squat of the body. Idling is still. `E` stops or restarts the engine.
+- **Camera angles.** 360°, Front, Side, Rear and Top (right edge on desktop, a row above the paints on phones; keys `1`–`5`). Each one is framed for that angle and keeps the car centred. Orbit toggles the slow turntable drift.
 - **Change the paint.** Seven lacquered dots, bottom right. A scanner gantry sweeps nose to tail and repaints the car as it passes, with a glowing seam on the bodywork and a laser line on the floor.
-- **Customize.** The popover next to the paints holds the garage (Hex, Neon, Concrete, Carbon), the floor (gloss epoxy, polished concrete, checker tiles), the light level and camera angles. The paint reflects the room.
+- **Customize.** The popover next to the paints holds the garage (Hex, Neon, Concrete, Carbon), the floor (gloss epoxy, polished concrete, checker tiles) and the light level. The paint reflects the room.
 - **Orbit.** Drag to rotate and scroll or pinch to zoom. Once you let go it slowly orbits again.
 - **Specs, test drive, reserve.** Demo only; nothing is sent anywhere.
 
@@ -76,7 +79,7 @@ app/
     car-lights.tsx           headlights, beams, taillights, engine idle motion
     camera-rig.tsx           camera controls, view transitions, auto-rotate, stays inside the room
     car-model.tsx            model loading, sizing, paint-scanner shader
-  components/ui/             DOM overlay: entry, header, title, paint bar + customize, ignition, specs, dialog, loader
+  components/ui/             DOM overlay: entry, header, title, view rail, paint bar + customize, ignition, specs, dialog, loader
   lib/experience.ts          engine state and the shared rpm timeline
   lib/engine-audio.ts        WebAudio engine, switch and scanner sounds
   routes/home.tsx            state and wiring

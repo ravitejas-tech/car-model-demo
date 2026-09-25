@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FLOOR_FINISHES, GARAGE_THEMES, type FloorFinish, type GarageTheme } from "~/lib/garage";
-import { formatPrice, PAINTS, VIEW_ORDER, VIEWS, type Paint, type ViewId } from "~/lib/showroom";
+import { formatPrice, PAINTS, type Paint } from "~/lib/showroom";
 import { CloseIcon, SunIcon } from "./icons";
 
 type PaintBarProps = {
@@ -8,19 +8,15 @@ type PaintBarProps = {
     garage: GarageTheme;
     floor: FloorFinish["id"];
     lightLevel: number;
-    view: ViewId | null;
-    autoRotate: boolean;
     onPaint: (paint: Paint) => void;
     onGarage: (theme: GarageTheme) => void;
     onFloor: (floor: FloorFinish["id"]) => void;
     onLightLevel: (level: number) => void;
-    onView: (view: ViewId) => void;
-    onToggleRotate: () => void;
 };
 
 /**
  * Bottom-right: the paint, as a row of lacquered dots, plus one "Customize"
- * button that opens everything else (garage, floor, light, camera).
+ * button that opens the garage, floor and light settings.
  */
 export function PaintBar(props: PaintBarProps) {
     const { paint, onPaint } = props;
@@ -96,7 +92,7 @@ export function PaintBar(props: PaintBarProps) {
     );
 }
 
-function CustomizePanel({ garage, floor, lightLevel, view, autoRotate, onGarage, onFloor, onLightLevel, onView, onToggleRotate, onClose }: PaintBarProps & { onClose: () => void }) {
+function CustomizePanel({ garage, floor, lightLevel, onGarage, onFloor, onLightLevel, onClose }: PaintBarProps & { onClose: () => void }) {
     return (
         <div className="panel-in mb-5 w-[min(92vw,340px)] rounded-2xl border border-white/[0.08] bg-[#0b0c0e]/90 p-5 shadow-[0_30px_60px_-20px_rgb(0_0_0/0.9)] backdrop-blur-xl">
             <div className="flex items-center justify-between">
@@ -143,27 +139,6 @@ function CustomizePanel({ garage, floor, lightLevel, view, autoRotate, onGarage,
                 </label>
             </div>
 
-            <div className="mt-5 border-t border-white/[0.06] pt-4">
-                <div className="flex items-center justify-between">
-                    <span className="font-mono text-[9.5px] uppercase tracking-[0.35em] text-white/40">Camera</span>
-                    <button type="button" onClick={onToggleRotate} aria-pressed={autoRotate} className={`font-mono text-[9.5px] uppercase tracking-[0.25em] transition-colors ${autoRotate ? "text-accent" : "text-white/35 hover:text-white/70"}`}>
-                        Orbit {autoRotate ? "on" : "off"}
-                    </button>
-                </div>
-                <div className="mt-3 flex justify-between" role="group" aria-label="Camera angle">
-                    {VIEW_ORDER.map((id) => (
-                        <button
-                            key={id}
-                            type="button"
-                            onClick={() => onView(id)}
-                            aria-pressed={view === id}
-                            className={`text-[11px] transition-colors ${view === id ? "text-white" : "text-white/35 hover:text-white/75"}`}
-                        >
-                            {VIEWS[id].label}
-                        </button>
-                    ))}
-                </div>
-            </div>
         </div>
     );
 }

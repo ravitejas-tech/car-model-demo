@@ -25,7 +25,7 @@ function GlowMaterial({ color, delay, side }: { color: THREE.Color; delay: numbe
     const material = useRef<THREE.MeshBasicMaterial>(null);
     useFrame(({ clock }) => {
         if (!animated || !material.current) return;
-        material.current.color.copy(color).multiplyScalar(fixtureLevel(clock.elapsedTime, delay));
+        material.current.color.copy(color).multiplyScalar(fixtureLevel(clock.elapsedTime, delay) * stage.ceiling);
     });
     return <meshBasicMaterial ref={material} color={color} toneMapped={false} side={side} />;
 }
@@ -35,7 +35,7 @@ function GlowMaterial({ color, delay, side }: { color: THREE.Color; delay: numbe
  * only just bloom), while the copy baked into the reflections is brighter so
  * the fixtures still draw crisp highlight lines along the paint.
  */
-const FIXTURE_GLOW = { scene: 0.08, environment: 2.6 };
+const FIXTURE_GLOW = { scene: 0.6, environment: 2.6 };
 const ACCENT_GLOW = { scene: 1.5, environment: 2.2 };
 
 type GarageRoomProps = {
@@ -141,7 +141,11 @@ type Bar = { position: [number, number, number]; rotationY: number; length: numb
 function Bars({ bars, color, delay, thickness = 0.07, depth = 0.04 }: { bars: Bar[]; color: THREE.Color; delay: number; thickness?: number; depth?: number }) {
     const animated = useContext(Animated);
     const mesh = useRef<THREE.InstancedMesh>(null);
+    const barMaterial = useRef<THREE.MeshBasicMaterial>(null);
     const settled = useRef(false);
+    useFrame(() => {
+        if (animated) barMaterial.current?.color.copy(color).multiplyScalar(stage.ceiling);
+    });
     const delays = useMemo(
         () => bars.map((bar) => delay + Math.hypot(bar.position[0], bar.position[2]) * WAVE + ((bar.position[0] * 13.1 + bar.position[2] * 7.7) % 1 + 1) % 1 * 0.12),
         [bars, delay]
@@ -184,7 +188,7 @@ function Bars({ bars, color, delay, thickness = 0.07, depth = 0.04 }: { bars: Ba
     return (
         <instancedMesh key={bars.length} ref={mesh} args={[undefined, undefined, bars.length]} frustumCulled={false}>
             <boxGeometry args={[1, depth, thickness]} />
-            <meshBasicMaterial color={color} toneMapped={false} />
+            <meshBasicMaterial ref={barMaterial} color={color} toneMapped={false} />
         </instancedMesh>
     );
 }
