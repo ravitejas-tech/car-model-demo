@@ -36,14 +36,22 @@ export type CameraShot = {
     target: Vec3;
     /** Seconds for the camera to settle; defaults to a quick move. */
     smoothTime?: number;
+    /** How much further back to stand on portrait screens (default 1.25). */
+    portraitScale?: number;
 };
 
 export const VIEWS: Record<ViewId, CameraShot & { label: string }> = {
-    hero: { label: "360°", position: [5.9, 1.15, 6.4], target: [0, 0.72, 0] },
-    front: { label: "Front", position: [0.001, 1.05, 7.6], target: [0, 0.65, 0] },
-    side: { label: "Side", position: [8.4, 0.95, 0.001], target: [0, 0.65, 0] },
-    rear: { label: "Rear", position: [-2.8, 1.2, -7.2], target: [0, 0.65, 0] },
-    top: { label: "Top", position: [3.3, 3.6, 3.3], target: [0, 0.3, 0] },
+    // Classic front three-quarter, camera a little below eye level.
+    hero: { label: "360°", position: [5.4, 1.05, 5.9], target: [0, 0.6, 0], smoothTime: 1.1 },
+    // Low and just off-axis: the grille and quad headlights, with depth.
+    front: { label: "Front", position: [1.3, 0.72, 6.9], target: [0, 0.62, 0], smoothTime: 1.1 },
+    // Pure profile at wheel-centre height, so the roofline reads long and low.
+    side: { label: "Side", position: [7.5, 0.62, 0.3], target: [0, 0.6, 0], smoothTime: 1.1, portraitScale: 1.42 },
+    // Rear three-quarter, low, with the taillights and the fastback.
+    rear: { label: "Rear", position: [-3.8, 0.9, -6.1], target: [-0.2, 0.62, -0.55], smoothTime: 1.1 },
+    // High three-quarter from just under the ceiling: the whole shape of the
+    // body, the fastback and the bonnet scoop, with the car fully in frame.
+    top: { label: "Top", position: [4.2, 4.85, 6.4], target: [0, 0.3, 0], smoothTime: 1.1 },
 };
 
 export const VIEW_ORDER: ViewId[] = ["hero", "front", "side", "rear", "top"];
@@ -57,8 +65,11 @@ export const IGNITION_SHOT: CameraShot = { position: [3.4, 0.62, 6.9], target: [
  */
 export const GATE_SHOT: CameraShot = { position: [3.9, 0.5, 5.3], target: [0, 0.58, 0.25], smoothTime: 0.01 };
 
-/** After the lights come up, a long slow pull back to the hero framing. */
-export const REVEAL_SHOT: CameraShot = { ...VIEWS.hero, smoothTime: 2.4 };
+/** As the engine starts, the camera tilts up into the dark to watch the ceiling lights strike. */
+export const LOOKUP_SHOT: CameraShot = { position: [4.4, 0.7, 6.4], target: [0.2, 3.6, -1.2], smoothTime: 1.5 };
+
+/** Then it tilts back down onto the car as the light pours over it. */
+export const REVEAL_SHOT: CameraShot = { ...VIEWS.hero, smoothTime: 2.2 };
 
 export const HEADLINE_STATS = [
     { value: 620, suffix: "hp", label: "Twin-turbo V8" },

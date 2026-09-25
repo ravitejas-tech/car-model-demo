@@ -119,7 +119,7 @@ function TitleCard({ play }: { play: boolean }) {
     return (
         <div aria-hidden className="pointer-events-none fixed inset-x-0 top-[calc(var(--bar)+7vh)] z-30 flex justify-center">
             {play && (
-                <div className="title-card flex flex-col items-center">
+                <div className="title-card flex flex-col items-center" style={{ animationDelay: "1.8s" }}>
                     <span className="font-mono text-[9px] uppercase tracking-[0.6em] text-white/45">2026</span>
                     <span className="mt-3 font-display text-[26px] text-white sm:text-[40px]">VELOCITY GT</span>
                 </div>

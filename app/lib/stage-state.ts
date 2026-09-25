@@ -11,6 +11,12 @@ export const stage = {
     introStart: -1,
     /** Clock time the current garage's fixtures started powering on. */
     fixturesStart: -1,
+    /**
+     * Brightness of the visible ceiling fixtures: full while they strike
+     * during the entry, then settling to a dim glow (dimmer on portrait
+     * screens, where the ceiling is always in frame).
+     */
+    ceiling: 1,
     /** Overall room power 0–1: eases up during the intro. */
     room: 0,
     /** Engine 0–1: headlights, taillights and idle, eased with a start-up flicker. */
@@ -59,7 +65,7 @@ export function introTime(clock: number): number {
 export const INTRO = {
     rim: 0.15,
     fixtures: 0.55,
-    keyLight: 0.75,
+    keyLight: 1.35,
     turntable: 1.1,
     signage: 1.2,
     word: 1.45,

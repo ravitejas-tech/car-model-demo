@@ -9,9 +9,10 @@ import { INTRO, introTime, paintScan, ramp, stage } from "~/lib/stage-state";
 /* Power director: drives the shared intro / engine timeline           */
 /* ------------------------------------------------------------------ */
 
-type DirectorProps = { ready: boolean; entered: boolean; engineOn: boolean; themeKey: string; paintKey: string };
+type DirectorProps = { ready: boolean; entered: boolean; live: boolean; engineOn: boolean; themeKey: string; paintKey: string };
 
-export function PowerDirector({ ready, entered, engineOn, themeKey, paintKey }: DirectorProps) {
+export function PowerDirector({ ready, entered, live, engineOn, themeKey, paintKey }: DirectorProps) {
+    const aspect = useThree((state) => state.size.width / state.size.height);
     const clock = useThree((state) => state.clock);
     const firstTheme = useRef(true);
     const firstPaint = useRef(true);
@@ -52,9 +53,13 @@ export function PowerDirector({ ready, entered, engineOn, themeKey, paintKey }: 
         if (engineOn) stage.engineStart = clock.elapsedTime + TIMELINE.catch;
     }, [engineOn, clock]);
 
-    useFrame(({ clock }) => {
+    useFrame(({ clock }, delta) => {
         const t = introTime(clock.elapsedTime);
         stage.room = ramp(t, INTRO.keyLight, 1.2);
+        // Ceiling lights strike at full brightness, then settle down once the
+        // page is live, like a detailing bay dimming to "showroom" mode.
+        const ceiling = !live ? 1 : aspect < 1 ? 0.1 : 0.6;
+        stage.ceiling += (ceiling - stage.ceiling) * (1 - Math.exp(-delta * 0.9));
         // Lights and rpm follow the same timeline as the engine sound.
         stage.engine = lightsLevel();
         stage.rpm = rpmNow();
@@ -84,6 +89,7 @@ const coneFragment = /* glsl */ `
     uniform vec3 uColor;
     uniform float uOpacity;
     uniform float uFalloff;
+    uniform float uReach;
     varying float vAlong;
     varying vec3 vNormalView;
     varying vec3 vViewDir;
@@ -93,7 +99,9 @@ const coneFragment = /* glsl */ `
         // Soft edges: surfaces seen edge-on (the cone's silhouette) fade out.
         float facing = abs(dot(normalize(vNormalView), normalize(vViewDir)));
         float edge = pow(facing, 2.2);
-        gl_FragColor = vec4(uColor, along * edge * uOpacity);
+        // uReach < 1 pours the beam down from the source: only the top part shows.
+        float poured = smoothstep(1.0 - uReach - 0.14, 1.0 - uReach + 0.02, vAlong);
+        gl_FragColor = vec4(uColor, along * edge * poured * uOpacity);
     }
 `;
 
@@ -109,12 +117,14 @@ type LightConeProps = {
     target: [number, number, number];
     /** Optional per-frame multiplier (0–1) for fading with the timeline. */
     level?: () => number;
+    /** Optional per-frame 0–1: how far down the beam has poured from its source. */
+    reach?: (elapsed: number) => number;
 };
 
-export function LightCone({ color, opacity, length, radius, falloff = 1.6, position, target, level }: LightConeProps) {
+export function LightCone({ color, opacity, length, radius, falloff = 1.6, position, target, level, reach }: LightConeProps) {
     const mesh = useRef<THREE.Mesh>(null);
     const uniforms = useMemo(
-        () => ({ uColor: { value: new THREE.Color(color) }, uOpacity: { value: 0 }, uFalloff: { value: falloff } }),
+        () => ({ uColor: { value: new THREE.Color(color) }, uOpacity: { value: 0 }, uFalloff: { value: falloff }, uReach: { value: 1 } }),
         // eslint-disable-next-line react-hooks/exhaustive-deps
         []
     );
@@ -137,9 +147,11 @@ export function LightCone({ color, opacity, length, radius, falloff = 1.6, posit
         m.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);
     }, [position, target]);
 
-    useFrame(() => {
+    useFrame(({ clock }) => {
         uniforms.uOpacity.value = opacity * (level ? level() : 1);
-        if (mesh.current) mesh.current.visible = uniforms.uOpacity.value > 0.002;
+        uniforms.uReach.value = reach ? reach(clock.elapsedTime) : 1;
+        // Scale away rather than hide, so the shader is compiled before the entry.
+        if (mesh.current) mesh.current.scale.setScalar(uniforms.uOpacity.value > 0.002 ? 1 : 1e-4);
     });
 
     return (
@@ -165,10 +177,10 @@ export function LightCone({ color, opacity, length, radius, falloff = 1.6, posit
 export function Dust({ color }: { color: string }) {
     const group = useRef<THREE.Group>(null);
     useFrame(({ clock }) => {
-        if (group.current) group.current.visible = ramp(introTime(clock.elapsedTime), INTRO.keyLight, 0.8) > 0.5;
+        if (group.current) group.current.scale.setScalar(ramp(introTime(clock.elapsedTime), INTRO.keyLight, 0.8) > 0.5 ? 1 : 1e-4);
     });
     return (
-        <group ref={group} visible={false}>
+        <group ref={group} scale={1e-4}>
             <Sparkles count={40} scale={[5, 3.2, 6]} position={[0, 1.9, 0]} size={1.1} speed={0.15} opacity={0.16} color={color} noise={0.6} />
         </group>
     );
@@ -238,7 +250,7 @@ export function PaintScanner({ accent }: { accent: string }) {
         const g = group.current;
         if (!g) return;
         const s = paintScan(clock.elapsedTime - stage.paintPulse);
-        g.visible = s.active;
+        g.scale.setScalar(s.active ? 1 : 1e-4);
         if (!s.active) return;
         g.position.z = s.z;
         color.set(accent);
@@ -249,7 +261,7 @@ export function PaintScanner({ accent }: { accent: string }) {
     });
 
     return (
-        <group ref={group} visible={false}>
+        <group ref={group} scale={1e-4}>
             <mesh geometry={frameGeometry} renderOrder={6}>
                 <meshBasicMaterial ref={frame} toneMapped={false} transparent depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
             </mesh>
