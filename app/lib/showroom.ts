@@ -16,13 +16,13 @@ export type Paint = {
 };
 
 export const PAINTS: Paint[] = [
-    { id: "velocity-green", name: "Velocity Green", color: "#0b5c24", accent: "#22c55e", metalness: 0.9, roughness: 0.28, price: 0 },
-    { id: "rosso-corsa", name: "Rosso Corsa", color: "#9b0a12", accent: "#f43f5e", metalness: 0.85, roughness: 0.25, price: 2400 },
-    { id: "liquid-gold", name: "Liquid Gold", color: "#a17a26", accent: "#e5b84b", metalness: 1, roughness: 0.22, price: 4800 },
-    { id: "midnight-blue", name: "Midnight Blue", color: "#0f1f5c", accent: "#60a5fa", metalness: 0.9, roughness: 0.26, price: 2400 },
-    { id: "nardo-grey", name: "Nardo Grey", color: "#5f6366", accent: "#cbd5e1", metalness: 0.35, roughness: 0.42, price: 1800 },
-    { id: "glacier-white", name: "Glacier White", color: "#e6e7e9", accent: "#f5f5f4", metalness: 0.3, roughness: 0.3, price: 1800 },
-    { id: "obsidian", name: "Obsidian Black", color: "#0a0a0c", accent: "#a1a1aa", metalness: 0.9, roughness: 0.2, price: 2400 },
+    { id: "velocity-green", name: "Velocity Green", color: "#0d6e2c", accent: "#22c55e", metalness: 0.55, roughness: 0.3, price: 0 },
+    { id: "rosso-corsa", name: "Rosso Corsa", color: "#b00c16", accent: "#f43f5e", metalness: 0.5, roughness: 0.28, price: 2400 },
+    { id: "liquid-gold", name: "Liquid Gold", color: "#a8802a", accent: "#e5b84b", metalness: 0.85, roughness: 0.24, price: 4800 },
+    { id: "midnight-blue", name: "Midnight Blue", color: "#16307a", accent: "#60a5fa", metalness: 0.55, roughness: 0.28, price: 2400 },
+    { id: "nardo-grey", name: "Nardo Grey", color: "#6a6e71", accent: "#cbd5e1", metalness: 0.25, roughness: 0.4, price: 1800 },
+    { id: "glacier-white", name: "Glacier White", color: "#e6e7e9", accent: "#f5f5f4", metalness: 0.12, roughness: 0.3, price: 1800 },
+    { id: "obsidian", name: "Obsidian Black", color: "#0a0a0c", accent: "#a1a1aa", metalness: 0.6, roughness: 0.2, price: 2400 },
 ];
 
 export const BASE_PRICE = 189000;

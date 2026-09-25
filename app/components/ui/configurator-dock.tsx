@@ -189,8 +189,8 @@ function GaragePicker({ garage, floor, lightLevel, onGarage, onFloor, onLightLev
                 <span className="sr-only">Garage lighting</span>
                 <input
                     type="range"
-                    min={0.4}
-                    max={1.6}
+                    min={0.3}
+                    max={1.4}
                     step={0.05}
                     value={lightLevel}
                     onChange={(event) => onLightLevel(Number(event.target.value))}

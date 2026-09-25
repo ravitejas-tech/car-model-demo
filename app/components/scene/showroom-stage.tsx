@@ -53,6 +53,8 @@ export function ShowroomStage(props: ShowroomStageProps) {
                 onFallback={() => setLowQuality(true)}
             />
             <color attach="background" args={[garage.background]} />
+            {/* Distant walls melt into darkness; the lit bay stays crisp. */}
+            <fog attach="fog" args={[garage.background, 11, 28]} />
 
             <ViewOffset panelOpen={props.panelOpen} />
             <CameraRig
@@ -62,7 +64,7 @@ export function ShowroomStage(props: ShowroomStageProps) {
                 onUserInteract={props.onUserInteract}
             />
 
-            <RoomLights color={fixtureColor} level={lightLevel} castShadow={!lowQuality} />
+            <RoomLights color={fixtureColor} accent={paint.accent} level={lightLevel} castShadow={!lowQuality} />
 
             <GarageRoom theme={garage} accent={paint.accent} lightLevel={lightLevel} variant="scene" />
             <GarageFloor finish={props.floor} lowQuality={lowQuality} />
@@ -83,20 +85,20 @@ export function ShowroomStage(props: ShowroomStageProps) {
                 key={`${garage.id}-${props.floor}-${garage.lightColor === "accent" || garage.wallDetail === "neon" ? paint.accent : ""}`}
                 resolution={512}
                 frames={1}
-                environmentIntensity={0.35 + 0.65 * lightLevel}
+                environmentIntensity={0.3 + 0.7 * lightLevel}
             >
                 <group position={[0, -1, 0]}>
                     <GarageRoom theme={garage} accent={paint.accent} lightLevel={1} variant="environment" />
                     <mesh rotation-x={-Math.PI / 2}>
                         <planeGeometry args={[ROOM.halfWidth * 2, ROOM.halfDepth * 2]} />
-                        <meshBasicMaterial color={props.floor === "concrete" ? "#3d3b38" : props.floor === "checker" ? "#5a5a5c" : "#0c0d10"} />
+                        <meshBasicMaterial color={props.floor === "concrete" ? "#1e1c1a" : props.floor === "checker" ? "#262628" : "#060708"} />
                     </mesh>
                 </group>
             </Environment>
 
             {!lowQuality && (
                 <EffectComposer multisampling={4}>
-                    <Bloom mipmapBlur luminanceThreshold={1} luminanceSmoothing={0.25} intensity={0.85} radius={0.72} />
+                    <Bloom mipmapBlur luminanceThreshold={0.95} luminanceSmoothing={0.3} intensity={0.55} radius={0.7} />
                     <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
                 </EffectComposer>
             )}
@@ -106,30 +108,35 @@ export function ShowroomStage(props: ShowroomStageProps) {
 
 let rectLightsReady = false;
 
-/** Real light sources matching the ceiling fixtures, so walls and floor are lit. */
-function RoomLights({ color, level, castShadow }: { color: string; level: number; castShadow: boolean }) {
+/**
+ * Low-key lighting: a pool of light on the car, a faint fill, and rim lights
+ * in the paint's accent colour so the body's silhouette glows against the dark.
+ */
+function RoomLights({ color, accent, level, castShadow }: { color: string; accent: string; level: number; castShadow: boolean }) {
     if (!rectLightsReady && typeof window !== "undefined") {
         RectAreaLightUniformsLib.init();
         rectLightsReady = true;
     }
     return (
         <>
-            <ambientLight intensity={0.06 * level} />
-            <hemisphereLight args={[color, "#1a1a1a", 0.55 * level]} />
+            <ambientLight intensity={0.02 * level} />
+            <hemisphereLight args={[color, "#000000", 0.08 * level]} />
             <rectAreaLight
                 position={[0, ROOM.height - 0.1, 0]}
                 rotation-x={-Math.PI / 2}
-                width={11}
-                height={14}
+                width={6}
+                height={8.5}
                 color={color}
-                intensity={2.4 * level}
+                intensity={1.5 * level}
             />
+            {/* Accent rim light from behind, aimed at the body so it doesn't pool on the floor. */}
+            <spotLight position={[-5, 3.2, -7]} target-position={[0, 0.9, 0]} angle={0.28} penumbra={1} decay={1.2} intensity={10 * level} color={accent} />
             <spotLight
                 position={[0, ROOM.height - 0.2, 0]}
-                angle={0.9}
-                penumbra={1}
-                decay={1.4}
-                intensity={18 * level}
+                angle={0.62}
+                penumbra={0.9}
+                decay={1.2}
+                intensity={26 * level}
                 color={color}
                 castShadow={castShadow}
                 shadow-mapSize={[1024, 1024]}
@@ -151,9 +158,9 @@ function makeCheckerTexture() {
     canvas.width = canvas.height = size;
     const ctx = canvas.getContext("2d")!;
     const half = size / 2;
-    ctx.fillStyle = "#d4d4d2";
+    ctx.fillStyle = "#7a7a78";
     ctx.fillRect(0, 0, size, size);
-    ctx.fillStyle = "#141518";
+    ctx.fillStyle = "#0e0f11";
     ctx.fillRect(half, 0, half, half);
     ctx.fillRect(0, half, half, half);
     // Hairline grout between tiles.
@@ -179,11 +186,11 @@ const FLOOR_LOOKS: Record<
     { color: string; roughness: number; metalness: number; blur: [number, number]; mixStrength: number; tile?: number }
 > = {
     // Deep, glossy and mirror-like.
-    epoxy: { color: "#101115", roughness: 0.35, metalness: 0.6, blur: [180, 70], mixStrength: 22 },
+    epoxy: { color: "#08090b", roughness: 0.3, metalness: 0.6, blur: [180, 70], mixStrength: 18 },
     // Soft blurred reflections on warm grey.
-    concrete: { color: "#8c8882", roughness: 0.75, metalness: 0.1, blur: [500, 220], mixStrength: 3, tile: 6 },
+    concrete: { color: "#4a4743", roughness: 0.75, metalness: 0.1, blur: [500, 220], mixStrength: 2.5, tile: 6 },
     // 60 cm tiles.
-    checker: { color: "#b4b4b2", roughness: 0.45, metalness: 0.15, blur: [260, 110], mixStrength: 5, tile: 1.2 },
+    checker: { color: "#8a8a8a", roughness: 0.4, metalness: 0.2, blur: [260, 110], mixStrength: 5, tile: 1.2 },
 };
 
 function GarageFloor({ finish, lowQuality }: { finish: FloorFinish["id"]; lowQuality: boolean }) {
@@ -238,7 +245,7 @@ function Turntable({ accent }: { accent: string }) {
 
     useFrame((state, delta) => {
         if (!ring.current) return;
-        target.set(accent).multiplyScalar(1.6);
+        target.set(accent).multiplyScalar(1.25);
         ring.current.color.lerp(target, 1 - Math.exp(-delta * 4));
         ring.current.opacity = 0.6 + Math.sin(state.clock.elapsedTime * 1.2) * 0.15;
     });
