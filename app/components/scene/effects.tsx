@@ -3,7 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { lightsLevel, rpmNow, TIMELINE } from "~/lib/experience";
-import { INTRO, introTime, paintScan, ramp, stage } from "~/lib/stage-state";
+import { INTRO, introTime, LIGHTS_DELAY, paintScan, ramp, stage } from "~/lib/stage-state";
 
 /* ------------------------------------------------------------------ */
 /* Power director: drives the shared intro / engine timeline           */
@@ -31,10 +31,11 @@ export function PowerDirector({ ready, entered, live, engineOn, themeKey, paintK
         if (ready && stage.gateStart < 0) stage.gateStart = clock.elapsedTime + 0.3;
     }, [ready, clock]);
 
-    // Pressing start: the garage lights come up just after the engine catches.
+    // Pressing start: the garage lights fade up once the engine has caught and revved.
     useEffect(() => {
         if (!entered || stage.introStart >= 0) return;
-        stage.introStart = clock.elapsedTime + TIMELINE.catch + 0.2;
+        stage.introStart = clock.elapsedTime + LIGHTS_DELAY;
+        stage.fixtureFade = true;
         stage.fixturesStart = stage.introStart + INTRO.fixtures;
     }, [entered, clock]);
 
@@ -44,7 +45,9 @@ export function PowerDirector({ ready, entered, live, engineOn, themeKey, paintK
             firstTheme.current = false;
             return;
         }
-        if (stage.introStart >= 0) stage.fixturesStart = clock.elapsedTime + 0.05;
+        if (stage.introStart < 0) return;
+        stage.fixtureFade = false;
+        stage.fixturesStart = clock.elapsedTime + 0.05;
     }, [themeKey, clock]);
 
     useEffect(() => {
@@ -94,14 +97,18 @@ const coneFragment = /* glsl */ `
     varying vec3 vNormalView;
     varying vec3 vViewDir;
     void main() {
+        // Clamp every input to pow(): with MSAA a varying can land just outside
+        // 0–1, and pow() of a negative is NaN, which bloom spreads over the
+        // whole frame (the screen goes black).
+        float v = clamp(vAlong, 0.0, 1.0);
         // Brightest at the source (tip, uv.y = 1), fading towards the floor.
-        float along = pow(vAlong, uFalloff);
+        float along = pow(v, uFalloff);
         // Soft edges: surfaces seen edge-on (the cone's silhouette) fade out.
-        float facing = abs(dot(normalize(vNormalView), normalize(vViewDir)));
+        float facing = clamp(abs(dot(normalize(vNormalView), normalize(vViewDir))), 0.0, 1.0);
         float edge = pow(facing, 2.2);
         // uReach < 1 pours the beam down from the source: only the top part shows.
-        float poured = smoothstep(1.0 - uReach - 0.14, 1.0 - uReach + 0.02, vAlong);
-        gl_FragColor = vec4(uColor, along * edge * poured * uOpacity);
+        float poured = smoothstep(1.0 - uReach - 0.14, 1.0 - uReach + 0.02, v);
+        gl_FragColor = vec4(uColor, clamp(along * edge * poured * uOpacity, 0.0, 1.0));
     }
 `;
 

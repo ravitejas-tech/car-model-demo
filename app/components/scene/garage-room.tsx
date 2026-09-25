@@ -2,7 +2,7 @@ import { useFrame } from "@react-three/fiber";
 import { createContext, useContext, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { ROOM, type GarageTheme } from "~/lib/garage";
-import { flicker, stage } from "~/lib/stage-state";
+import { fixturePower, POWER_ON_SECONDS, stage } from "~/lib/stage-state";
 
 /**
  * Whether fixtures animate (the visible room) or render at full power (the
@@ -16,7 +16,7 @@ const DELAY = { ceiling: 0, walls: 0.35, baseboard: 0.45, sign: 0.7 };
 const WAVE = 0.07;
 
 function fixtureLevel(clock: number, delay: number) {
-    return stage.fixturesStart < 0 ? 0 : flicker(clock - stage.fixturesStart - delay);
+    return stage.fixturesStart < 0 ? 0 : fixturePower(clock - stage.fixturesStart - delay);
 }
 
 /** Emissive material whose brightness follows the power-on timeline. */
@@ -136,7 +136,7 @@ type Bar = { position: [number, number, number]; rotationY: number; length: numb
 
 /**
  * Instanced thin boxes: every fixture is made of these. While powering on,
- * each bar flickers on individually, rippling outwards from the centre.
+ * each bar comes on individually, rippling outwards from the centre.
  */
 function Bars({ bars, color, delay, thickness = 0.07, depth = 0.04 }: { bars: Bar[]; color: THREE.Color; delay: number; thickness?: number; depth?: number }) {
     const animated = useContext(Animated);
@@ -150,7 +150,7 @@ function Bars({ bars, color, delay, thickness = 0.07, depth = 0.04 }: { bars: Ba
         () => bars.map((bar) => delay + Math.hypot(bar.position[0], bar.position[2]) * WAVE + ((bar.position[0] * 13.1 + bar.position[2] * 7.7) % 1 + 1) % 1 * 0.12),
         [bars, delay]
     );
-    const lastDelay = useMemo(() => Math.max(0, ...delays) + 0.8, [delays]);
+    const lastDelay = useMemo(() => Math.max(0, ...delays) + POWER_ON_SECONDS, [delays]);
     const scratch = useMemo(() => new THREE.Color(), []);
 
     useLayoutEffect(() => {
@@ -181,7 +181,7 @@ function Bars({ bars, color, delay, thickness = 0.07, depth = 0.04 }: { bars: Ba
         } else {
             settled.current = false;
         }
-        for (let i = 0; i < delays.length; i++) target.setColorAt(i, scratch.setScalar(flicker(t - delays[i])));
+        for (let i = 0; i < delays.length; i++) target.setColorAt(i, scratch.setScalar(fixturePower(t - delays[i])));
         if (target.instanceColor) target.instanceColor.needsUpdate = true;
     });
 

@@ -11,6 +11,8 @@ export const stage = {
     introStart: -1,
     /** Clock time the current garage's fixtures started powering on. */
     fixturesStart: -1,
+    /** Fixtures fade up smoothly (the entry) rather than flickering on (a garage switch). */
+    fixtureFade: false,
     /**
      * Brightness of the visible ceiling fixtures: full while they strike
      * during the entry, then settling to a dim glow (dimmer on portrait
@@ -50,6 +52,16 @@ export function flicker(t: number): number {
     return 1;
 }
 
+/** Seconds a fixture takes to fade up during the entry. */
+const FIXTURE_FADE = 1.6;
+/** Seconds after switching on by which any fixture has reached full power. */
+export const POWER_ON_SECONDS = FIXTURE_FADE + 0.1;
+
+/** Brightness of a fixture `t` seconds after it was switched on. */
+export function fixturePower(t: number): number {
+    return stage.fixtureFade ? ramp(t, 0, FIXTURE_FADE) : flicker(t);
+}
+
 /** Smooth 0→1 ramp between `start` and `start + duration`. */
 export function ramp(t: number, start: number, duration: number): number {
     const x = Math.min(1, Math.max(0, (t - start) / duration));
@@ -61,7 +73,13 @@ export function introTime(clock: number): number {
     return stage.introStart < 0 ? 0 : clock - stage.introStart;
 }
 
-/** Intro timeline, in seconds after the model is ready. */
+/**
+ * Seconds after pressing start that the garage lights begin: the camera holds
+ * on the car while it cranks, catches and revs with its headlights on.
+ */
+export const LIGHTS_DELAY = 2.3;
+
+/** Intro timeline, in seconds after `stage.introStart` (see `LIGHTS_DELAY`). */
 export const INTRO = {
     rim: 0.15,
     fixtures: 0.55,

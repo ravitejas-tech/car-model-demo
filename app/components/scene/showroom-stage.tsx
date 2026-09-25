@@ -13,7 +13,7 @@ import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLigh
 import { ROOM, type FloorFinish, type GarageTheme } from "~/lib/garage";
 import type { CameraShot, Paint } from "~/lib/showroom";
 import { engine, clock as engineClock, TIMELINE } from "~/lib/experience";
-import { flicker, INTRO, introTime, ramp, stage } from "~/lib/stage-state";
+import { fixturePower, INTRO, introTime, ramp, stage } from "~/lib/stage-state";
 import { CameraRig } from "./camera-rig";
 import { CarModel } from "./car-model";
 import { Dust, LightCone, PaintScanner, PowerDirector, StageRing } from "./effects";
@@ -166,7 +166,7 @@ function RoomLights({ color, accent, level, castShadow }: { color: string; accen
     useFrame(({ clock }) => {
         const now = clock.elapsedTime;
         const t = introTime(now);
-        const fixtures = stage.fixturesStart < 0 ? 0 : flicker(now - stage.fixturesStart);
+        const fixtures = stage.fixturesStart < 0 ? 0 : fixturePower(now - stage.fixturesStart);
         const room = stage.room;
         if (ambient.current) ambient.current.intensity = 0.02 * level * room;
         if (hemi.current) hemi.current.intensity = 0.08 * level * room;

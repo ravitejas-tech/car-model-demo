@@ -6,9 +6,9 @@ A single-page, interactive car showroom built with React Router 7, React Three F
 
 1. **Black screen, thin loading line.**
 2. **The gate.** Letterbox bars and a silhouette of the car, edged by a rim light while the camera drifts slowly. The only control is a push-to-start button ("Enter silently" skips the sound; `Enter` also works).
-3. **Ignition.** The starter cranks and the engine catches with one short jolt and a rev. The headlights and taillights double-flash on.
-4. **Lights from the top.** The camera tilts up into the dark ceiling as the lights strike one after another, rippling out from above the car, each with a switch clunk.
-5. **Light falls on the car.** A shaft of light pours down from the ceiling. The camera tilts back down onto the lit car while a title card plays, then the letterbox bars retract and the page rises in. The ceiling settles to a dim glow.
+3. **Ignition.** The camera holds on the car while the starter cranks and the engine catches with one short jolt and a rev. The headlights and taillights double-flash on.
+4. **Pull back, lights up.** Once the revs settle, the camera eases back to the hero shot while the ceiling lights fade up one after another, rippling out from above the car, each with a switch clunk.
+5. **Light falls on the car.** A shaft of light pours down from the ceiling onto the car while a title card plays, then the letterbox bars retract and the page rises in. The ceiling settles to a dim glow.
 
 All shaders are compiled while the gate is showing, and quality/resolution never change during the entry, so nothing stalls or flashes black mid-sequence.
 

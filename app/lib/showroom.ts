@@ -65,11 +65,8 @@ export const IGNITION_SHOT: CameraShot = { position: [3.4, 0.62, 6.9], target: [
  */
 export const GATE_SHOT: CameraShot = { position: [3.9, 0.5, 5.3], target: [0, 0.58, 0.25], smoothTime: 0.01 };
 
-/** As the engine starts, the camera tilts up into the dark to watch the ceiling lights strike. */
-export const LOOKUP_SHOT: CameraShot = { position: [4.4, 0.7, 6.4], target: [0.2, 3.6, -1.2], smoothTime: 1.5 };
-
-/** Then it tilts back down onto the car as the light pours over it. */
-export const REVEAL_SHOT: CameraShot = { ...VIEWS.hero, smoothTime: 2.2 };
+/** Once the car is running, the camera eases back to the hero shot as the lights come up. */
+export const REVEAL_SHOT: CameraShot = { ...VIEWS.hero, smoothTime: 2.6 };
 
 export const HEADLINE_STATS = [
     { value: 620, suffix: "hp", label: "Twin-turbo V8" },
