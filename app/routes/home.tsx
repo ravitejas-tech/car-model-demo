@@ -19,7 +19,7 @@ export default function Showroom() {
     const [autoRotate, setAutoRotate] = useState(true);
     const [garage, setGarage] = useState(GARAGE_THEMES[0]);
     const [floor, setFloor] = useState<FloorFinish["id"]>("epoxy");
-    const [lightLevel, setLightLevel] = useState(1);
+    const [lightLevel, setLightLevel] = useState(0.9);
     const [specsOpen, setSpecsOpen] = useState(false);
     const [reserveMode, setReserveMode] = useState<ReserveMode | null>(null);
     const [interacted, setInteracted] = useState(false);

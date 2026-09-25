@@ -2,13 +2,18 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { ROOM, type GarageTheme } from "~/lib/garage";
 
-/** How bright emissive fixtures are; values above 1 are picked up by bloom. */
-const FIXTURE_GLOW = 2.6;
+/**
+ * How bright emissive fixtures are. The room itself stays dim (values near 1
+ * only just bloom), while the copy baked into the reflections is brighter so
+ * the fixtures still draw crisp highlight lines along the paint.
+ */
+const FIXTURE_GLOW = { scene: 1.05, environment: 2.6 };
+const ACCENT_GLOW = { scene: 1.5, environment: 2.2 };
 
 type GarageRoomProps = {
     theme: GarageTheme;
     accent: string;
-    /** 0.4–1.6 multiplier from the brightness slider. */
+    /** 0.3–1.4 multiplier from the brightness slider. */
     lightLevel: number;
     /**
      * `"scene"` renders the lit room you walk around in; `"environment"` is a
@@ -20,12 +25,12 @@ type GarageRoomProps = {
 export function GarageRoom({ theme, accent, lightLevel, variant }: GarageRoomProps) {
     const fixtureColor = theme.lightColor === "accent" ? accent : theme.lightColor;
     const glow = useMemo(
-        () => new THREE.Color(fixtureColor).multiplyScalar(FIXTURE_GLOW * lightLevel),
-        [fixtureColor, lightLevel]
+        () => new THREE.Color(fixtureColor).multiplyScalar(FIXTURE_GLOW[variant] * lightLevel),
+        [fixtureColor, lightLevel, variant]
     );
     const accentGlow = useMemo(
-        () => new THREE.Color(accent).multiplyScalar(3.2 * lightLevel),
-        [accent, lightLevel]
+        () => new THREE.Color(accent).multiplyScalar(ACCENT_GLOW[variant] * lightLevel),
+        [accent, lightLevel, variant]
     );
     const env = variant === "environment";
 
@@ -44,9 +49,9 @@ function Shell({ theme, unlit }: { theme: GarageTheme; unlit: boolean }) {
     const { halfWidth: w, halfDepth: d, height: h } = ROOM;
     const concrete = useConcreteTexture(theme.id === "concrete-loft");
     const wallColor = useMemo(() => {
-        // The environment copy is unlit, so lift it to roughly how lit walls read.
+        // The environment copy is unlit; keep it dark so reflections stay moody.
         const color = new THREE.Color(theme.wall);
-        return unlit ? color.multiplyScalar(1.6) : color;
+        return unlit ? color.multiplyScalar(0.8) : color;
     }, [theme.wall, unlit]);
 
     const walls: { position: [number, number, number]; rotation: [number, number, number]; size: [number, number] }[] = [
@@ -130,9 +135,10 @@ function Bars({ bars, color, thickness = 0.07, depth = 0.04 }: { bars: Bar[]; co
 /** Honeycomb of LED tubes with a rectangular frame, as in detailing studios. */
 function HexGrid({ y, color }: { y: number; color: THREE.Color }) {
     const bars = useMemo(() => {
-        const radius = 1.05;
-        const halfX = 9.4;
-        const halfZ = 11.2;
+        // Only over the bay: the rest of the room falls away into darkness.
+        const radius = 0.9;
+        const halfX = 4.4;
+        const halfZ = 5.8;
         const seen = new Set<string>();
         const result: Bar[] = [];
         const width = Math.sqrt(3) * radius;
@@ -159,8 +165,8 @@ function HexGrid({ y, color }: { y: number; color: THREE.Color }) {
             }
         }
         // Frame around the honeycomb.
-        const fx = halfX + 1.1;
-        const fz = halfZ + 1.1;
+        const fx = halfX + 0.9;
+        const fz = halfZ + 0.9;
         result.push(
             { position: [0, y, -fz], rotationY: 0, length: fx * 2 },
             { position: [0, y, fz], rotationY: 0, length: fx * 2 },
@@ -174,7 +180,7 @@ function HexGrid({ y, color }: { y: number; color: THREE.Color }) {
 
 function Strips({ y, color }: { y: number; color: THREE.Color }) {
     const bars = useMemo<Bar[]>(
-        () => [-9, -6, -3, 0, 3, 6, 9].map((x) => ({ position: [x, y, 0], rotationY: Math.PI / 2, length: 24 })),
+        () => [-2.6, 0, 2.6].map((x) => ({ position: [x, y, 0], rotationY: Math.PI / 2, length: 10 })),
         [y]
     );
     return <Bars bars={bars} color={color} thickness={0.09} />;
@@ -183,14 +189,14 @@ function Strips({ y, color }: { y: number; color: THREE.Color }) {
 function Panels({ y, color }: { y: number; color: THREE.Color }) {
     const panels = useMemo(() => {
         const result: [number, number, number][] = [];
-        for (const x of [-7.5, -2.5, 2.5, 7.5]) for (const z of [-10, -5, 0, 5, 10]) result.push([x, y, z]);
+        for (const x of [-2.1, 2.1]) for (const z of [-3.4, 0, 3.4]) result.push([x, y, z]);
         return result;
     }, [y]);
     return (
         <group>
             {panels.map((position, i) => (
                 <mesh key={i} position={position} rotation-x={Math.PI / 2}>
-                    <planeGeometry args={[2.4, 1.4]} />
+                    <planeGeometry args={[1.8, 1]} />
                     <meshBasicMaterial color={color} toneMapped={false} side={THREE.DoubleSide} />
                 </mesh>
             ))}
@@ -201,7 +207,7 @@ function Panels({ y, color }: { y: number; color: THREE.Color }) {
 function Rings({ y, color }: { y: number; color: THREE.Color }) {
     return (
         <group position={[0, y - 0.25, 0]} rotation-x={Math.PI / 2}>
-            {[2.4, 3.8, 5.2, 7.6, 10].map((radius) => (
+            {[2.2, 3.4, 4.6].map((radius) => (
                 <mesh key={radius}>
                     <torusGeometry args={[radius, 0.04, 8, 160]} />
                     <meshBasicMaterial color={color} toneMapped={false} />
@@ -217,7 +223,9 @@ function Rings({ y, color }: { y: number; color: THREE.Color }) {
 
 function WallDetail({ theme, accentGlow, lightLevel, unlit }: { theme: GarageTheme; accentGlow: THREE.Color; lightLevel: number; unlit: boolean }) {
     const { halfWidth: w, halfDepth: d } = ROOM;
-    const baseGlow = useMemo(() => new THREE.Color("#dfe6ff").multiplyScalar(1.6 * lightLevel), [lightLevel]);
+    // A faint line in the paint's accent colour where walls meet the floor.
+    const baseGlow = useMemo(() => accentGlow.clone().multiplyScalar(0.45), [accentGlow]);
+    void lightLevel;
 
     // A thin light line where each wall meets the floor.
     const baseboard = useMemo<Bar[]>(
@@ -262,7 +270,7 @@ function WallDetail({ theme, accentGlow, lightLevel, unlit }: { theme: GarageThe
                 </group>
             );
         default:
-            return <Bars bars={baseboard} color={baseGlow.clone().multiplyScalar(0.7)} thickness={0.03} />;
+            return <Bars bars={baseboard} color={baseGlow} thickness={0.03} />;
     }
 }
 

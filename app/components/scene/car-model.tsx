@@ -37,9 +37,13 @@ export function CarModel({ paint, onReady }: CarModelProps) {
             const material = mesh.material as THREE.MeshStandardMaterial;
             if (material.name === "carpaint") {
                 const physical = material as THREE.MeshPhysicalMaterial;
+                // The source model tiles a noise normal map over the body, which
+                // reads as a spotty pattern up close. Smooth clearcoat instead.
+                physical.normalMap = null;
                 physical.clearcoat = 1;
-                physical.clearcoatRoughness = 0.04;
-                physical.envMapIntensity = 1.4;
+                physical.clearcoatRoughness = 0.03;
+                physical.envMapIntensity = 1.7;
+                physical.needsUpdate = true;
                 paintMaterial.current = physical;
             } else if (material.name === "chrome") {
                 material.envMapIntensity = 1.6;
