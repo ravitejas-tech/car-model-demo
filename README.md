@@ -71,11 +71,11 @@ app/
   lib/stage-state.ts         shared animation state and intro timeline
   components/scene/          everything inside the <Canvas>
     showroom-stage.tsx       canvas, lights, floor finishes, bloom, reflections, view offset
-    garage-room.tsx          procedural garage: walls, ceiling fixtures (ripple power-on), slats, neon, sign
-    effects.tsx              intro director, light cones, dust, paint shockwave, bezel turntable, backdrop word
+    garage-room.tsx          procedural garage: walls, ceiling fixtures (ripple power-on), slats, neon
+    effects.tsx              intro director, light cones, dust, paint-scanner gantry, stage ring
     car-lights.tsx           headlights, beams, taillights, engine idle motion
     camera-rig.tsx           camera controls, view transitions, auto-rotate, stays inside the room
-    car-model.tsx            model loading, sizing, paint blending
+    car-model.tsx            model loading, sizing, paint-scanner shader
   components/ui/             DOM overlay: entry, header, title, paint bar + customize, ignition, specs, dialog, loader
   lib/experience.ts          engine state and the shared rpm timeline
   lib/engine-audio.ts        WebAudio engine, switch and scanner sounds
