@@ -19,8 +19,17 @@ export const links: Route.LinksFunction = () => [
   },
   {
     rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
+    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Michroma&display=swap",
   },
+];
+
+export const meta: Route.MetaFunction = () => [
+  { title: "Velocity GT — Interactive Showroom" },
+  {
+    name: "description",
+    content: "Explore the Velocity GT in 3D: choose a paint, orbit the car and discover its details.",
+  },
+  { name: "theme-color", content: "#08090b" },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
