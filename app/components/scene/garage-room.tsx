@@ -1,13 +1,41 @@
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
+import { createContext, useContext, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { ROOM, type GarageTheme } from "~/lib/garage";
+import { flicker, stage } from "~/lib/stage-state";
+
+/**
+ * Whether fixtures animate (the visible room) or render at full power (the
+ * copy baked into reflections, which is captured in a single frame).
+ */
+const Animated = createContext(false);
+
+/** Seconds after `stage.fixturesStart` that each fixture group switches on. */
+const DELAY = { ceiling: 0, walls: 0.35, baseboard: 0.45, sign: 0.7 };
+/** Extra delay per metre from the centre: lights ripple outwards from the car. */
+const WAVE = 0.07;
+
+function fixtureLevel(clock: number, delay: number) {
+    return stage.fixturesStart < 0 ? 0 : flicker(clock - stage.fixturesStart - delay);
+}
+
+/** Emissive material whose brightness follows the power-on timeline. */
+function GlowMaterial({ color, delay, side }: { color: THREE.Color; delay: number; side?: THREE.Side }) {
+    const animated = useContext(Animated);
+    const material = useRef<THREE.MeshBasicMaterial>(null);
+    useFrame(({ clock }) => {
+        if (!animated || !material.current) return;
+        material.current.color.copy(color).multiplyScalar(fixtureLevel(clock.elapsedTime, delay));
+    });
+    return <meshBasicMaterial ref={material} color={color} toneMapped={false} side={side} />;
+}
 
 /**
  * How bright emissive fixtures are. The room itself stays dim (values near 1
  * only just bloom), while the copy baked into the reflections is brighter so
  * the fixtures still draw crisp highlight lines along the paint.
  */
-const FIXTURE_GLOW = { scene: 1.05, environment: 2.6 };
+const FIXTURE_GLOW = { scene: 0.08, environment: 2.6 };
 const ACCENT_GLOW = { scene: 1.5, environment: 2.2 };
 
 type GarageRoomProps = {
@@ -35,12 +63,13 @@ export function GarageRoom({ theme, accent, lightLevel, variant }: GarageRoomPro
     const env = variant === "environment";
 
     return (
-        <group>
-            <Shell theme={theme} unlit={env} />
-            <CeilingFixtures style={theme.lightStyle} color={glow} />
-            <WallDetail theme={theme} accentGlow={accentGlow} lightLevel={lightLevel} unlit={env} />
-            <BrandSign color={accentGlow} />
-        </group>
+        <Animated.Provider value={!env}>
+            <group>
+                <Shell theme={theme} unlit={env} />
+                <CeilingFixtures style={theme.lightStyle} color={glow} />
+                <WallDetail theme={theme} accentGlow={accentGlow} lightLevel={lightLevel} unlit={env} />
+            </group>
+        </Animated.Provider>
     );
 }
 
@@ -105,9 +134,20 @@ function CeilingFixtures({ style, color }: { style: GarageTheme["lightStyle"]; c
 
 type Bar = { position: [number, number, number]; rotationY: number; length: number };
 
-/** Instanced thin boxes: every fixture is made of these. */
-function Bars({ bars, color, thickness = 0.07, depth = 0.04 }: { bars: Bar[]; color: THREE.Color; thickness?: number; depth?: number }) {
+/**
+ * Instanced thin boxes: every fixture is made of these. While powering on,
+ * each bar flickers on individually, rippling outwards from the centre.
+ */
+function Bars({ bars, color, delay, thickness = 0.07, depth = 0.04 }: { bars: Bar[]; color: THREE.Color; delay: number; thickness?: number; depth?: number }) {
+    const animated = useContext(Animated);
     const mesh = useRef<THREE.InstancedMesh>(null);
+    const settled = useRef(false);
+    const delays = useMemo(
+        () => bars.map((bar) => delay + Math.hypot(bar.position[0], bar.position[2]) * WAVE + ((bar.position[0] * 13.1 + bar.position[2] * 7.7) % 1 + 1) % 1 * 0.12),
+        [bars, delay]
+    );
+    const lastDelay = useMemo(() => Math.max(0, ...delays) + 0.8, [delays]);
+    const scratch = useMemo(() => new THREE.Color(), []);
 
     useLayoutEffect(() => {
         const target = mesh.current;
@@ -119,10 +159,27 @@ function Bars({ bars, color, thickness = 0.07, depth = 0.04 }: { bars: Bar[]; co
             quaternion.setFromAxisAngle(up, bar.rotationY);
             matrix.compose(new THREE.Vector3(...bar.position), quaternion, new THREE.Vector3(bar.length, 1, 1));
             target.setMatrixAt(i, matrix);
+            target.setColorAt(i, scratch.setScalar(animated ? 0 : 1));
         });
         target.instanceMatrix.needsUpdate = true;
+        if (target.instanceColor) target.instanceColor.needsUpdate = true;
         target.computeBoundingSphere();
-    }, [bars]);
+        settled.current = false;
+    }, [bars, animated, scratch]);
+
+    useFrame(({ clock }) => {
+        const target = mesh.current;
+        if (!animated || !target || stage.fixturesStart < 0) return;
+        const t = clock.elapsedTime - stage.fixturesStart;
+        if (t > lastDelay) {
+            if (settled.current) return;
+            settled.current = true;
+        } else {
+            settled.current = false;
+        }
+        for (let i = 0; i < delays.length; i++) target.setColorAt(i, scratch.setScalar(flicker(t - delays[i])));
+        if (target.instanceColor) target.instanceColor.needsUpdate = true;
+    });
 
     return (
         <instancedMesh key={bars.length} ref={mesh} args={[undefined, undefined, bars.length]} frustumCulled={false}>
@@ -175,7 +232,7 @@ function HexGrid({ y, color }: { y: number; color: THREE.Color }) {
         );
         return result;
     }, [y]);
-    return <Bars bars={bars} color={color} />;
+    return <Bars bars={bars} color={color} delay={DELAY.ceiling} />;
 }
 
 function Strips({ y, color }: { y: number; color: THREE.Color }) {
@@ -183,7 +240,7 @@ function Strips({ y, color }: { y: number; color: THREE.Color }) {
         () => [-2.6, 0, 2.6].map((x) => ({ position: [x, y, 0], rotationY: Math.PI / 2, length: 10 })),
         [y]
     );
-    return <Bars bars={bars} color={color} thickness={0.09} />;
+    return <Bars bars={bars} color={color} delay={DELAY.ceiling} thickness={0.09} />;
 }
 
 function Panels({ y, color }: { y: number; color: THREE.Color }) {
@@ -197,7 +254,7 @@ function Panels({ y, color }: { y: number; color: THREE.Color }) {
             {panels.map((position, i) => (
                 <mesh key={i} position={position} rotation-x={Math.PI / 2}>
                     <planeGeometry args={[1.8, 1]} />
-                    <meshBasicMaterial color={color} toneMapped={false} side={THREE.DoubleSide} />
+                    <GlowMaterial color={color} delay={DELAY.ceiling + i * 0.12} side={THREE.DoubleSide} />
                 </mesh>
             ))}
         </group>
@@ -207,10 +264,10 @@ function Panels({ y, color }: { y: number; color: THREE.Color }) {
 function Rings({ y, color }: { y: number; color: THREE.Color }) {
     return (
         <group position={[0, y - 0.25, 0]} rotation-x={Math.PI / 2}>
-            {[2.2, 3.4, 4.6].map((radius) => (
+            {[2.2, 3.4, 4.6].map((radius, i) => (
                 <mesh key={radius}>
                     <torusGeometry args={[radius, 0.04, 8, 160]} />
-                    <meshBasicMaterial color={color} toneMapped={false} />
+                    <GlowMaterial color={color} delay={DELAY.ceiling + i * 0.22} />
                 </mesh>
             ))}
         </group>
@@ -243,7 +300,7 @@ function WallDetail({ theme, accentGlow, lightLevel, unlit }: { theme: GarageThe
             return (
                 <group>
                     <Slats color={theme.wall} lighten={1.6} unlit={unlit} />
-                    <Bars bars={baseboard} color={baseGlow} thickness={0.04} />
+                    <Bars bars={baseboard} color={baseGlow} delay={DELAY.baseboard} thickness={0.04} />
                 </group>
             );
         case "neon": {
@@ -257,7 +314,7 @@ function WallDetail({ theme, accentGlow, lightLevel, unlit }: { theme: GarageThe
             ];
             return (
                 <group>
-                    <Bars bars={bars} color={accentGlow} thickness={0.05} />
+                    <Bars bars={bars} color={accentGlow} delay={DELAY.walls} thickness={0.05} />
                     <NeonVerticals color={accentGlow} />
                 </group>
             );
@@ -266,11 +323,11 @@ function WallDetail({ theme, accentGlow, lightLevel, unlit }: { theme: GarageThe
             return (
                 <group>
                     <WoodWall color={theme.woodColor ?? "#6e4a2c"} unlit={unlit} />
-                    <Bars bars={baseboard.slice(0, 1)} color={baseGlow} thickness={0.04} />
+                    <Bars bars={baseboard.slice(0, 1)} color={baseGlow} delay={DELAY.baseboard} thickness={0.04} />
                 </group>
             );
         default:
-            return <Bars bars={baseboard} color={baseGlow} thickness={0.03} />;
+            return <Bars bars={baseboard} color={baseGlow} delay={DELAY.baseboard} thickness={0.03} />;
     }
 }
 
@@ -317,7 +374,7 @@ function NeonVerticals({ color }: { color: THREE.Color }) {
             {tubes.map((position, i) => (
                 <mesh key={i} position={position}>
                     <boxGeometry args={[0.05, h, 0.05]} />
-                    <meshBasicMaterial color={color} toneMapped={false} />
+                    <GlowMaterial color={color} delay={DELAY.walls + i * 0.06} />
                 </mesh>
             ))}
         </group>
@@ -354,25 +411,6 @@ function WoodWall({ color, unlit }: { color: string; unlit: boolean }) {
     );
 }
 
-/** The Velocity "V" mark glowing on the back wall. */
-function BrandSign({ color }: { color: THREE.Color }) {
-    const geometry = useMemo(() => {
-        // Same outline as the UI logo (32×32 artboard), centred and flipped to Y-up.
-        const shape = new THREE.Shape();
-        const pts: [number, number][] = [[3, 7], [10, 7], [16, 19], [22, 7], [29, 7], [18.5, 27], [13.5, 27]];
-        pts.forEach(([x, y], i) => (i === 0 ? shape.moveTo(x - 16, 17 - y) : shape.lineTo(x - 16, 17 - y)));
-        shape.closePath();
-        const geo = new THREE.ExtrudeGeometry(shape, { depth: 1.2, bevelEnabled: false });
-        geo.scale(0.04, 0.04, 0.04);
-        return geo;
-    }, []);
-
-    return (
-        <mesh geometry={geometry} position={[0, 2.6, -ROOM.halfDepth + 0.3]}>
-            <meshBasicMaterial color={color} toneMapped={false} />
-        </mesh>
-    );
-}
 
 /* ------------------------------------------------------------------ */
 /* Textures                                                            */

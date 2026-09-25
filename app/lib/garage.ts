@@ -90,4 +90,4 @@ export const FLOOR_FINISHES: FloorFinish[] = [
 ];
 
 /** Room size in metres. The camera is clamped to stay inside it. */
-export const ROOM = { halfWidth: 12, halfDepth: 14, height: 4.2 };
+export const ROOM = { halfWidth: 12, halfDepth: 14, height: 5.4 };

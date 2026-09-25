@@ -6,6 +6,8 @@ export type Vec3 = [number, number, number];
 export type Paint = {
     id: string;
     name: string;
+    /** Finish shown in the configurator, e.g. Metallic. */
+    finish: string;
     /** Body colour applied to the `carpaint` material. */
     color: string;
     /** UI accent derived from the paint, tuned for contrast on a dark background. */
@@ -16,20 +18,25 @@ export type Paint = {
 };
 
 export const PAINTS: Paint[] = [
-    { id: "velocity-green", name: "Velocity Green", color: "#0d6e2c", accent: "#22c55e", metalness: 0.55, roughness: 0.3, price: 0 },
-    { id: "rosso-corsa", name: "Rosso Corsa", color: "#b00c16", accent: "#f43f5e", metalness: 0.5, roughness: 0.28, price: 2400 },
-    { id: "liquid-gold", name: "Liquid Gold", color: "#a8802a", accent: "#e5b84b", metalness: 0.85, roughness: 0.24, price: 4800 },
-    { id: "midnight-blue", name: "Midnight Blue", color: "#16307a", accent: "#60a5fa", metalness: 0.55, roughness: 0.28, price: 2400 },
-    { id: "nardo-grey", name: "Nardo Grey", color: "#6a6e71", accent: "#cbd5e1", metalness: 0.25, roughness: 0.4, price: 1800 },
-    { id: "glacier-white", name: "Glacier White", color: "#e6e7e9", accent: "#f5f5f4", metalness: 0.12, roughness: 0.3, price: 1800 },
-    { id: "obsidian", name: "Obsidian Black", color: "#0a0a0c", accent: "#a1a1aa", metalness: 0.6, roughness: 0.2, price: 2400 },
+    { id: "velocity-green", name: "Velocity Green", finish: "Metallic", color: "#0d6e2c", accent: "#22c55e", metalness: 0.55, roughness: 0.3, price: 0 },
+    { id: "rosso-corsa", name: "Rosso Corsa", finish: "Solid", color: "#b00c16", accent: "#f43f5e", metalness: 0.5, roughness: 0.28, price: 2400 },
+    { id: "liquid-gold", name: "Liquid Gold", finish: "Metallic", color: "#a8802a", accent: "#e5b84b", metalness: 0.85, roughness: 0.24, price: 4800 },
+    { id: "midnight-blue", name: "Midnight Blue", finish: "Pearl", color: "#16307a", accent: "#60a5fa", metalness: 0.55, roughness: 0.28, price: 2400 },
+    { id: "nardo-grey", name: "Nardo Grey", finish: "Solid", color: "#6a6e71", accent: "#cbd5e1", metalness: 0.25, roughness: 0.4, price: 1800 },
+    { id: "glacier-white", name: "Glacier White", finish: "Pearl", color: "#e6e7e9", accent: "#f5f5f4", metalness: 0.12, roughness: 0.3, price: 1800 },
+    { id: "obsidian", name: "Obsidian Black", finish: "Metallic", color: "#0a0a0c", accent: "#a1a1aa", metalness: 0.6, roughness: 0.2, price: 2400 },
 ];
 
 export const BASE_PRICE = 189000;
 
 export type ViewId = "hero" | "front" | "side" | "rear" | "top";
 
-export type CameraShot = { position: Vec3; target: Vec3 };
+export type CameraShot = {
+    position: Vec3;
+    target: Vec3;
+    /** Seconds for the camera to settle; defaults to a quick move. */
+    smoothTime?: number;
+};
 
 export const VIEWS: Record<ViewId, CameraShot & { label: string }> = {
     hero: { label: "360°", position: [5.9, 1.15, 6.4], target: [0, 0.72, 0] },
@@ -40,6 +47,18 @@ export const VIEWS: Record<ViewId, CameraShot & { label: string }> = {
 };
 
 export const VIEW_ORDER: ViewId[] = ["hero", "front", "side", "rear", "top"];
+
+/** Low, head-on angle the camera swings to when the engine starts. */
+export const IGNITION_SHOT: CameraShot = { position: [3.4, 0.62, 6.9], target: [0, 0.62, 0.4] };
+
+/**
+ * The waiting shot before entry: low and close on the front three-quarter,
+ * so the rim light draws the car's silhouette against the dark.
+ */
+export const GATE_SHOT: CameraShot = { position: [3.9, 0.5, 5.3], target: [0, 0.58, 0.25], smoothTime: 0.01 };
+
+/** After the lights come up, a long slow pull back to the hero framing. */
+export const REVEAL_SHOT: CameraShot = { ...VIEWS.hero, smoothTime: 2.4 };
 
 export const HEADLINE_STATS = [
     { value: 620, suffix: "hp", label: "Twin-turbo V8" },

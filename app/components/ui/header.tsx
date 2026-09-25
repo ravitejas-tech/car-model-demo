@@ -6,9 +6,13 @@ type HeaderProps = {
     onSpecs: () => void;
     onReserve: () => void;
     onTestDrive: () => void;
+    sound: boolean;
+    engineOn: boolean;
+    onToggleSound: () => void;
+    show: boolean;
 };
 
-export function Header({ onOverview, onSpecs, onReserve, onTestDrive }: HeaderProps) {
+export function Header({ onOverview, onSpecs, onReserve, onTestDrive, sound, engineOn, onToggleSound, show }: HeaderProps) {
     const [menuOpen, setMenuOpen] = useState(false);
     const links = [
         { label: "Overview", action: onOverview },
@@ -22,33 +26,24 @@ export function Header({ onOverview, onSpecs, onReserve, onTestDrive }: HeaderPr
     };
 
     return (
-        <header className="pointer-events-none absolute inset-x-0 top-0 z-30 px-5 pt-5 sm:px-8 sm:pt-6">
-            <nav className="pointer-events-auto mx-auto flex max-w-[1400px] items-center justify-between">
+        <header className={`pointer-events-none absolute inset-x-0 top-0 z-30 px-5 pt-5 transition-opacity duration-1000 sm:px-10 sm:pt-7 ${show ? "opacity-100" : "opacity-0"}`} aria-hidden={!show}>
+            <nav className={`mx-auto flex items-center justify-between ${show ? "pointer-events-auto" : ""}`}>
                 <button type="button" onClick={() => run(onOverview)} className="flex items-center gap-3" aria-label="Velocity home">
-                    <LogoMark className="size-7" />
-                    <span className="font-display text-sm tracking-[0.45em] text-white">VELOCITY</span>
+                    <LogoMark className="size-5" />
+                    <span className="font-display text-[11px] tracking-[0.55em] text-white/90">VELOCITY</span>
                 </button>
 
-                <div className="glass hidden items-center gap-1 rounded-full p-1 md:flex">
-                    {links.map((link) => (
-                        <button
-                            key={link.label}
-                            type="button"
-                            onClick={link.action}
-                            className="rounded-full px-5 py-2 text-xs font-medium uppercase tracking-[0.2em] text-white/60 transition-colors hover:bg-white/10 hover:text-white"
-                        >
-                            {link.label}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 sm:gap-5">
+                    <button type="button" onClick={onSpecs} className="hidden font-mono text-[10px] uppercase tracking-[0.3em] text-white/50 transition-colors hover:text-white md:block">
+                        Specs
+                    </button>
+                    <SoundToggle sound={sound} active={engineOn} onToggle={onToggleSound} />
                     <button
                         type="button"
                         onClick={onTestDrive}
-                        className="hidden rounded-full border border-accent/60 px-5 py-2.5 text-xs font-semibold uppercase tracking-[0.2em] text-white transition-all hover:bg-accent hover:text-black sm:block"
+                        className="hidden rounded-full border border-white/20 px-5 py-2.5 font-mono text-[10px] uppercase tracking-[0.3em] text-white/85 transition-all hover:border-white hover:bg-white hover:text-black sm:block"
                     >
-                        Book a test drive
+                        Test drive
                     </button>
                     <button
                         type="button"
@@ -84,5 +79,31 @@ export function Header({ onOverview, onSpecs, onReserve, onTestDrive }: HeaderPr
                 </div>
             )}
         </header>
+    );
+}
+
+/** Sound on/off, with bars that dance while the engine is running. */
+function SoundToggle({ sound, active, onToggle }: { sound: boolean; active: boolean; onToggle: () => void }) {
+    const live = sound && active;
+    return (
+        <button
+            type="button"
+            onClick={onToggle}
+            aria-pressed={sound}
+            aria-label={sound ? "Mute engine sound" : "Unmute engine sound"}
+            title={sound ? "Sound on" : "Sound off"}
+            className="flex h-10 items-center gap-2.5 rounded-full px-3 font-mono text-[9px] uppercase tracking-[0.24em] text-white/55 transition-colors hover:text-white"
+        >
+            <span className="flex h-3 items-end gap-[2px]" aria-hidden>
+                {[0, 1, 2, 3].map((i) => (
+                    <span
+                        key={i}
+                        className={`w-[2px] origin-bottom rounded-full ${sound ? "bg-accent" : "bg-white/35"} ${live ? "animate-[eq_0.9s_ease-in-out_infinite]" : ""}`}
+                        style={{ height: sound ? `${[45, 90, 65, 35][i]}%` : "20%", animationDelay: `${i * -0.23}s` }}
+                    />
+                ))}
+            </span>
+            <span className="hidden sm:inline">{sound ? "Sound" : "Muted"}</span>
+        </button>
     );
 }
