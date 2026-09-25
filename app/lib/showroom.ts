@@ -1,4 +1,4 @@
-// Static data for the showroom: paints, camera views, hotspots and specs.
+// Static data for the showroom: paints, camera views and specs.
 // Model space: the car's nose points along +Z, roof along +Y.
 
 export type Vec3 = [number, number, number];
@@ -32,65 +32,14 @@ export type ViewId = "hero" | "front" | "side" | "rear" | "top";
 export type CameraShot = { position: Vec3; target: Vec3 };
 
 export const VIEWS: Record<ViewId, CameraShot & { label: string }> = {
-    hero: { label: "360°", position: [5.7, 1.75, 6.3], target: [0, 0.55, 0] },
-    front: { label: "Front", position: [0.001, 1, 7.6], target: [0, 0.55, 0] },
-    side: { label: "Side", position: [8.4, 0.9, 0.001], target: [0, 0.55, 0] },
-    rear: { label: "Rear", position: [-2.8, 1.4, -7], target: [0, 0.55, 0] },
-    top: { label: "Top", position: [3.2, 7.4, 3.2], target: [0, 0.2, 0] },
+    hero: { label: "360°", position: [5.9, 1.15, 6.4], target: [0, 0.72, 0] },
+    front: { label: "Front", position: [0.001, 1.05, 7.6], target: [0, 0.65, 0] },
+    side: { label: "Side", position: [8.4, 0.95, 0.001], target: [0, 0.65, 0] },
+    rear: { label: "Rear", position: [-2.8, 1.2, -7.2], target: [0, 0.65, 0] },
+    top: { label: "Top", position: [3.3, 3.6, 3.3], target: [0, 0.3, 0] },
 };
 
 export const VIEW_ORDER: ViewId[] = ["hero", "front", "side", "rear", "top"];
-
-export type Hotspot = {
-    id: string;
-    title: string;
-    stat: string;
-    body: string;
-    /** Position in raw model units (the model is scaled at runtime). */
-    anchor: Vec3;
-    /** Outward direction; the marker fades out when it faces away from the camera. */
-    normal: Vec3;
-    shot: CameraShot;
-};
-
-export const HOTSPOTS: Hotspot[] = [
-    {
-        id: "lights",
-        title: "Matrix LED headlights",
-        stat: "84 adaptive segments",
-        body: "Each segment dims independently, so high beams stay on without dazzling oncoming traffic.",
-        anchor: [62, 58, 214],
-        normal: [0.45, 0.1, 1],
-        shot: { position: [2.6, 1.05, 5.1], target: [0.4, 0.5, 1.6] },
-    },
-    {
-        id: "wheels",
-        title: "Forged 21\" wheels",
-        stat: "Carbon-ceramic brakes",
-        body: "Ten-piston front calipers bring the GT from 100 km/h to a stop in 30.9 metres.",
-        anchor: [93, 32, 140],
-        normal: [1, 0, 0.1],
-        shot: { position: [5, 0.55, 3], target: [0.6, 0.35, 1.2] },
-    },
-    {
-        id: "cabin",
-        title: "Hand-stitched cabin",
-        stat: "Panoramic glass roof",
-        body: "Full-grain leather, open-pore walnut and a roof that tints on demand at the touch of a button.",
-        anchor: [0, 121, -30],
-        normal: [0, 1, 0],
-        shot: { position: [3.1, 4.4, 2.3], target: [0, 0.8, -0.2] },
-    },
-    {
-        id: "tail",
-        title: "Signature light bar",
-        stat: "Aero rear diffuser",
-        body: "A single light blade spans the tail while the diffuser adds 120 kg of downforce at speed.",
-        anchor: [60, 66, -223],
-        normal: [0.35, 0.1, -1],
-        shot: { position: [-2.4, 1.1, -5.4], target: [0.3, 0.55, -1.4] },
-    },
-];
 
 export const HEADLINE_STATS = [
     { value: 620, suffix: "hp", label: "Twin-turbo V8" },

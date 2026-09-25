@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { ShowroomStage } from "~/components/scene/showroom-stage";
 import { ConfiguratorDock } from "~/components/ui/configurator-dock";
 import { Header } from "~/components/ui/header";
-import { HeroCopy, HotspotCard } from "~/components/ui/hero-copy";
+import { HeroCopy } from "~/components/ui/hero-copy";
 import { DragIcon } from "~/components/ui/icons";
 import { Loader } from "~/components/ui/loader";
 import { ReserveDialog, type ReserveMode } from "~/components/ui/reserve-dialog";
 import { SpecsPanel } from "~/components/ui/specs-panel";
-import { HOTSPOTS, PAINTS, VIEW_ORDER, VIEWS, type CameraShot, type Hotspot, type ViewId } from "~/lib/showroom";
+import { GARAGE_THEMES, type FloorFinish } from "~/lib/garage";
+import { PAINTS, VIEW_ORDER, VIEWS, type CameraShot, type ViewId } from "~/lib/showroom";
 
 export default function Showroom() {
     const [ready, setReady] = useState(false);
@@ -16,8 +17,9 @@ export default function Showroom() {
     // A fresh object per request, so re-selecting the same view re-frames the car.
     const [shot, setShot] = useState<CameraShot>({ ...VIEWS.hero });
     const [autoRotate, setAutoRotate] = useState(true);
-    const [showHotspots, setShowHotspots] = useState(true);
-    const [activeHotspot, setActiveHotspot] = useState<Hotspot | null>(null);
+    const [garage, setGarage] = useState(GARAGE_THEMES[0]);
+    const [floor, setFloor] = useState<FloorFinish["id"]>("epoxy");
+    const [lightLevel, setLightLevel] = useState(1);
     const [specsOpen, setSpecsOpen] = useState(false);
     const [reserveMode, setReserveMode] = useState<ReserveMode | null>(null);
     const [interacted, setInteracted] = useState(false);
@@ -39,29 +41,10 @@ export default function Showroom() {
 
     const goToView = useCallback((id: ViewId) => {
         setView(id);
-        setActiveHotspot(null);
         setShot({ ...VIEWS[id] });
         // Hold still on a chosen angle; the 360° view keeps spinning.
         setAutoRotate(id === "hero");
     }, []);
-
-    const openHotspot = useCallback((hotspot: Hotspot) => {
-        setActiveHotspot(hotspot);
-        setSpecsOpen(false);
-        setView(null);
-        setAutoRotate(false);
-        setShot({ ...hotspot.shot });
-    }, []);
-
-    const stepHotspot = (direction: 1 | -1) => {
-        const index = activeHotspot ? HOTSPOTS.findIndex((h) => h.id === activeHotspot.id) : -1;
-        openHotspot(HOTSPOTS[(index + direction + HOTSPOTS.length) % HOTSPOTS.length]);
-    };
-
-    const openSpecs = () => {
-        setActiveHotspot(null);
-        setSpecsOpen(true);
-    };
 
     const openReserve = (mode: ReserveMode) => {
         setSpecsOpen(false);
@@ -74,7 +57,6 @@ export default function Showroom() {
             if (reserveMode || event.target instanceof HTMLInputElement) return;
             if (event.key === "Escape") {
                 setSpecsOpen(false);
-                setActiveHotspot(null);
             } else if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
                 const step = event.key === "ArrowRight" ? 1 : -1;
                 setPaint((current) => {
@@ -89,64 +71,47 @@ export default function Showroom() {
         return () => window.removeEventListener("keydown", onKey);
     }, [reserveMode, goToView]);
 
-    const hotspotIndex = activeHotspot ? HOTSPOTS.findIndex((h) => h.id === activeHotspot.id) : 0;
-
     return (
-        <main className="relative h-dvh w-full overflow-hidden bg-[#08090b] font-sans">
+        <main className="relative h-dvh w-full overflow-hidden font-sans" style={{ background: garage.background }}>
             <ShowroomStage
                 paint={paint}
                 shot={shot}
                 ready={ready}
                 autoRotate={autoRotate}
-                showHotspots={showHotspots}
-                activeHotspot={activeHotspot?.id ?? null}
                 panelOpen={specsOpen}
+                garage={garage}
+                floor={floor}
+                lightLevel={lightLevel}
                 onReady={handleReady}
                 onUserInteract={handleInteract}
-                onHotspotSelect={openHotspot}
             />
 
+            {/* Darken the left edge so the copy stays legible in brighter garages. */}
+            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 hidden w-[46%] bg-gradient-to-r from-black/65 via-black/25 to-transparent md:block" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-[45%] bg-gradient-to-b from-black/60 to-transparent md:hidden" />
             <div className="vignette pointer-events-none absolute inset-0 z-10" />
             <div className="grain pointer-events-none absolute inset-0 z-10" />
-
-            {/* Oversized model name watermark behind the UI */}
-            <div
-                aria-hidden
-                className={`pointer-events-none absolute inset-x-0 bottom-[22%] z-10 select-none text-center font-display text-[22vw] leading-none text-white/[0.025] transition-opacity duration-1000 lg:bottom-[14%] lg:text-[15vw] ${
-                    ready ? "opacity-100" : "opacity-0"
-                }`}
-            >
-                GT
-            </div>
 
             <Header
                 onOverview={() => {
                     setSpecsOpen(false);
                     goToView("hero");
                 }}
-                onSpecs={openSpecs}
+                onSpecs={() => setSpecsOpen(true)}
                 onReserve={() => openReserve("reserve")}
                 onTestDrive={() => openReserve("test-drive")}
             />
 
             <HeroCopy
                 ready={ready}
-                hidden={!!activeHotspot || specsOpen}
+                hidden={specsOpen}
                 paint={paint}
                 onReserve={() => openReserve("reserve")}
-                onSpecs={openSpecs}
-            />
-
-            <HotspotCard
-                hotspot={activeHotspot}
-                index={hotspotIndex}
-                total={HOTSPOTS.length}
-                onClose={() => goToView("hero")}
-                onStep={stepHotspot}
+                onSpecs={() => setSpecsOpen(true)}
             />
 
             {ready && !interacted && (
-                <div className="reveal pointer-events-none absolute bottom-40 right-8 z-20 hidden items-center gap-3 text-[11px] uppercase tracking-[0.25em] text-white/45 lg:flex" style={{ animationDelay: "1400ms" }}>
+                <div className="reveal pointer-events-none absolute bottom-40 right-8 z-20 hidden items-center gap-3 text-[11px] uppercase tracking-[0.25em] text-white/55 lg:flex" style={{ animationDelay: "1400ms" }}>
                     <DragIcon className="size-5 animate-[drift_2.4s_ease-in-out_infinite]" />
                     Drag to rotate · Scroll to zoom
                 </div>
@@ -157,12 +122,16 @@ export default function Showroom() {
                 paint={paint}
                 view={view}
                 autoRotate={autoRotate}
-                showHotspots={showHotspots}
+                garage={garage}
+                floor={floor}
+                lightLevel={lightLevel}
                 onPaint={setPaint}
                 onView={goToView}
                 onToggleRotate={() => setAutoRotate((value) => !value)}
-                onToggleHotspots={() => setShowHotspots((value) => !value)}
-                onSpecs={openSpecs}
+                onSpecs={() => setSpecsOpen(true)}
+                onGarage={setGarage}
+                onFloor={setFloor}
+                onLightLevel={setLightLevel}
             />
 
             <SpecsPanel open={specsOpen} onClose={() => setSpecsOpen(false)} onReserve={() => openReserve("reserve")} />

@@ -1,6 +1,6 @@
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useLayoutEffect, useMemo, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { Paint } from "~/lib/showroom";
 
@@ -11,11 +11,9 @@ const TARGET_LENGTH = 4.66;
 type CarModelProps = {
     paint: Paint;
     onReady?: () => void;
-    /** Rendered inside the car's local (unscaled model) space, e.g. hotspots. */
-    children?: ReactNode;
 };
 
-export function CarModel({ paint, onReady, children }: CarModelProps) {
+export function CarModel({ paint, onReady }: CarModelProps) {
     const { scene } = useGLTF(MODEL_URL);
     const paintMaterial = useRef<THREE.MeshPhysicalMaterial | null>(null);
     const targetColor = useMemo(() => new THREE.Color(), []);
@@ -68,7 +66,6 @@ export function CarModel({ paint, onReady, children }: CarModelProps) {
         <group scale={scale}>
             <group position={offset}>
                 <primitive object={scene} />
-                {children}
             </group>
         </group>
     );
