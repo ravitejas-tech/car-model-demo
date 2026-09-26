@@ -7,12 +7,11 @@ type HeaderProps = {
     onReserve: () => void;
     onTestDrive: () => void;
     sound: boolean;
-    engineOn: boolean;
     onToggleSound: () => void;
     show: boolean;
 };
 
-export function Header({ onOverview, onSpecs, onReserve, onTestDrive, sound, engineOn, onToggleSound, show }: HeaderProps) {
+export function Header({ onOverview, onSpecs, onReserve, onTestDrive, sound, onToggleSound, show }: HeaderProps) {
     const [menuOpen, setMenuOpen] = useState(false);
     const links = [
         { label: "Overview", action: onOverview },
@@ -37,7 +36,7 @@ export function Header({ onOverview, onSpecs, onReserve, onTestDrive, sound, eng
                     <button type="button" onClick={onSpecs} className="hidden font-mono text-[10px] uppercase tracking-[0.3em] text-white/50 transition-colors hover:text-white md:block">
                         Specs
                     </button>
-                    <SoundToggle sound={sound} active={engineOn} onToggle={onToggleSound} />
+                    <SoundToggle sound={sound} active={show} onToggle={onToggleSound} />
                     <button
                         type="button"
                         onClick={onTestDrive}
@@ -82,7 +81,7 @@ export function Header({ onOverview, onSpecs, onReserve, onTestDrive, sound, eng
     );
 }
 
-/** Sound on/off, with bars that dance while the engine is running. */
+/** Sound on/off (engine and music), with bars that dance while it plays. */
 function SoundToggle({ sound, active, onToggle }: { sound: boolean; active: boolean; onToggle: () => void }) {
     const live = sound && active;
     return (
@@ -90,7 +89,7 @@ function SoundToggle({ sound, active, onToggle }: { sound: boolean; active: bool
             type="button"
             onClick={onToggle}
             aria-pressed={sound}
-            aria-label={sound ? "Mute engine sound" : "Unmute engine sound"}
+            aria-label={sound ? "Mute sound" : "Unmute sound"}
             title={sound ? "Sound on" : "Sound off"}
             className="flex h-10 items-center gap-2.5 rounded-full px-3 font-mono text-[9px] uppercase tracking-[0.24em] text-white/55 transition-colors hover:text-white"
         >

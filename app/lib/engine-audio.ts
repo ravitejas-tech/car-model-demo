@@ -1,12 +1,18 @@
 /**
  * A small WebAudio synth: V8 start-up and idle, garage light switches and a
- * paint-scanner whoosh. Everything is generated; there are no audio files.
+ * paint-scanner whoosh, all generated. The one audio file is the background
+ * music track, streamed through the same graph so the mute toggle covers it.
  * The AudioContext is created on the first user gesture (browser policy).
  */
 import { BLIP_SECONDS, blipRpm, startupRpm, TIMELINE } from "./experience";
 
 const CURVE_SECONDS = TIMELINE.settled;
 const CURVE_STEP = 0.02;
+
+const MUSIC_URL = "/music.mp3";
+/** Sits under the engine rather than over it. */
+const MUSIC_LEVEL = 0.32;
+const MUSIC_FADE_SECONDS = 3;
 
 type EngineNodes = {
     oscillators: OscillatorNode[];
@@ -24,6 +30,7 @@ class EngineAudio {
     private master: GainNode | null = null;
     private noise: AudioBuffer | null = null;
     private engine: EngineNodes | null = null;
+    private music: HTMLAudioElement | null = null;
     private muted = false;
 
     /** Must be called from a user gesture before anything is audible. */
@@ -49,6 +56,38 @@ class EngineAudio {
         this.muted = muted;
         if (!this.ctx || !this.master) return;
         this.master.gain.setTargetAtTime(muted ? 0 : 0.9, this.ctx.currentTime, 0.08);
+    }
+
+    /**
+     * Loop the background track, fading in `delay` seconds from now. Call it
+     * from the user gesture: the element is unlocked there (Safari only lets
+     * media play from a gesture) and started later on a timer.
+     */
+    startMusic(delay: number) {
+        const ctx = this.ctx;
+        if (!ctx || !this.master || this.music) return;
+        const music = new Audio(MUSIC_URL);
+        music.loop = true;
+        music.preload = "auto";
+        this.music = music;
+
+        const gain = ctx.createGain();
+        const t = ctx.currentTime + delay;
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(MUSIC_LEVEL, t + MUSIC_FADE_SECONDS);
+        ctx.createMediaElementSource(music).connect(gain).connect(this.master);
+
+        // Unlock now (silent: the gain is still at zero), play from the top later.
+        void music.play().then(() => music.pause(), () => {});
+        setTimeout(() => {
+            music.currentTime = 0;
+            void music.play().catch(() => {});
+        }, delay * 1000);
+    }
+
+    stopMusic() {
+        this.music?.pause();
+        this.music = null;
     }
 
     /** Starter crank, catch, rev, blip, settle into a lumpy idle. */

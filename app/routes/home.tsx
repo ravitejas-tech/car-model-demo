@@ -83,6 +83,8 @@ export default function Showroom() {
         // Heavy switches clunk as each bank of lights strikes.
         const fixturesAt = LIGHTS_DELAY + INTRO.fixtures;
         [0, 0.16, 0.33, 0.62].forEach((delay, i) => engineAudio.lightSwitch(fixturesAt + delay, 1 - i * 0.1));
+        // The music comes in with the lights and keeps playing from then on.
+        engineAudio.startMusic(fixturesAt);
 
         setEntry("intro");
         setAutoRotate(false);
@@ -129,6 +131,7 @@ export default function Showroom() {
     useEffect(() => () => {
         clearTimers();
         engineAudio.stop(true);
+        engineAudio.stopMusic();
     }, []);
 
     // Paint change: scanner whoosh. Garage change: the light switches clunk.
@@ -215,7 +218,6 @@ export default function Showroom() {
                 onReserve={() => openReserve("reserve")}
                 onTestDrive={() => openReserve("test-drive")}
                 sound={sound}
-                engineOn={engineOn}
                 onToggleSound={toggleSound}
             />
 
